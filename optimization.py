@@ -250,8 +250,8 @@ def checknonzeroSynFR(model, optSet):
             synapseWeight = optSet.model.getElementByID(synapseID).\
                 find("Weight").text
             s += synapseName
-            # print(synapseName, end=' ')
-            for sp in range(4-(len(synapseName)+1)/8):
+            print(synapseName, end=' ')
+            for sp in range(4-int((len(synapseName)+1)/8)):
                 s += '\t'
                 # print('\t', end=' ')
             s += "Weight : "
@@ -1113,7 +1113,7 @@ def affichConnexionsFR(model, optSet, SynapsesFR, show):
         if show == 1:
             if syn not in optSet.disabledSynFRNbs:
                 sp = ""
-                for n in range(3-(len(synapseName[syn])+1)/8):
+                for n in range(3-int((len(synapseName[syn])+1)/8)):
                     sp += '\t'
                 txt = '[{:2d}]\t{};' + sp + '\tWeight:{:.2e};\t{};\t{}  ->\t{}'
                 print(txt.format(

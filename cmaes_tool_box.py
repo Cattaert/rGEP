@@ -8,6 +8,10 @@ Modified February 22, 2023 (D. Cattaert):
 Modified April 03, 2023 (D. Cattaert):
     In exec_CMAeFromGUI() procedure, security added before launching 
     graphfromchart() (try: ... except), in case graphs cannot be drawn.
+Modified February 01, 2024 (D. Cattaert):
+    The last line of he function "exec_CMAeFromGUI()" has been secured with a
+    Try...
+    except...
 """
 
 import os
@@ -313,5 +317,8 @@ def exec_CMAeFromGUI(win, optSet, projMan):
         graphfromchart(optSet, destdir, chartname, templateFileName)
     except Exception as e:
         print(e)
-    graphfromFitCourse(folders.animatlab_result_dir,
-                       "CMAeFitCourse.txt")
+    try:
+        graphfromFitCourse(folders.animatlab_result_dir,
+                           "CMAeFitCourse.txt")
+    except Exception as e:
+        print(e)

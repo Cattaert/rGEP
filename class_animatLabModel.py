@@ -10,7 +10,11 @@ modified November 09, 2017 (D. Cattaert):
     These facilities are used in "optimization.py" in affichMotor() function
 modified November 29, 2018 (D. Cattaert):
     Informations are now printed depending on the verbose level
+
 Translated in Python 3.8 Jan 2023 (D. Cattaert)
+modified February 01, 2024 (D. Cattaert):
+    Bug fixed in lookupAppend4() method for synapsesFR to make it compatible
+    with python3.8.
 """
 
 # Import dependencies
@@ -1092,10 +1096,12 @@ class AnimatLabSimFile(object):
             lookupID.append(el.find("ID").text)
             s = (el.find("FromID").text)
             t = NeuID
-            sm = np.array(lookupElement)[np.where(np.array(lookupID) == s)[0]]
+            sm = np.array(lookupElement, dtype=object
+                          )[np.where(np.array(lookupID) == s)[0]]
             if len(sm) == 1:
                 sname = sm[0].find("Name").text
-            tm = np.array(lookupElement)[np.where(np.array(lookupID) == t)[0]]
+            tm = np.array(lookupElement, dtype=object
+                          )[np.where(np.array(lookupID) == t)[0]]
             if len(tm) == 1:
                 tname = tm[0].find("Name").text
             # lookupName.append(s + "*" + t)
