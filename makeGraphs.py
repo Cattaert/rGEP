@@ -213,6 +213,10 @@ Modified October 17, 2023 (D. Cattaert):
     names extension is ".txt":
         either an 'EMG'
         or a 'bhvMvt'
+Modified February 03, 2024 (D. Cattaert):
+    In grid_method() method, derecated writing fixed:
+        state_table = np.zeros(dtype=int, shape=(nbcol, nbrow))
+        ('dtype=np.int' replaced by 'dtype=int')
 """
 import os
 from os import listdir
@@ -5271,7 +5275,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         nBhvOK = 0
         if not os.path.exists(completeName):
             if nbr_trials > 100:
-                state_table = np.zeros(dtype=np.int, shape=(nbcol, nbrow))
+                state_table = np.zeros(dtype=int, shape=(nbcol, nbrow))
                 lst_bn_bhv = []
                 for run in range(int(round(nbr_trials/100))+1):
                     start = run * 100
@@ -5323,7 +5327,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
                             fich.write(s)
                     fich.close()
                     print("metrics data saved to: ", completeName)
-                    print
+                    print()
         else:
             print("Tab_scores already exists... Build graph from it")
 
