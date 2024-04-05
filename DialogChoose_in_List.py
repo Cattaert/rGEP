@@ -188,8 +188,11 @@ def set_values_in_list(dicValues, selected, typ, text):
     """
     Open a wndow with a list of element names and values and ask to modify
     their values.
-    in: list_elem = list of names
-    out: the single selected name
+    in: dicValues = dictionary = {name1:value1; name2:value2; ...}
+        selected= list(dicvalues.keys())
+        typ = "param names"
+        text = box titleText
+    out: the new dicValues
     """
     list_elem = list(dicValues.keys())
     # list_values = list(dicValues.values())
@@ -212,15 +215,16 @@ def set_values_in_list(dicValues, selected, typ, text):
                                     typ="val",
                                     titleText=titleText)
     # print rep
-    SelectedNames = []
-    listDic_columns = rep[0]
-    # choice = listDic_columns[0][typ]
-    # self.firstSelectedNames = []
-    for i in range(len(listDic_columns[0][listChoix[0]])):
-        itemName = listDic_columns[0][listChoix[0]][i]
-        SelectedNames.append(itemName)
-        dicValues[itemName] = float(rep[1][itemName])
-        print(itemName, rep[1][itemName])
+    if rep[1] != {}:  # The list and values were validated
+        SelectedNames = []
+        listDic_columns = rep[0]
+        # choice = listDic_columns[0][typ]
+        # self.firstSelectedNames = []
+        for i in range(len(listDic_columns[0][listChoix[0]])):
+            itemName = listDic_columns[0][listChoix[0]][i]
+            SelectedNames.append(itemName)
+            dicValues[itemName] = float(rep[1][itemName])
+            print(itemName, rep[1][itemName])
     return dicValues
 
 
@@ -709,6 +713,7 @@ class ChooseInList(QtWidgets.QDialog):
                  typ="val",
                  titleText="Choose a season"):
         super(ChooseInList, self).__init__(parent)
+        # self.setGeometry(200, 100, 500, 900)
         self.graphNo = graphNo
         self.listChoix = listChoix
         self.items = items
@@ -777,6 +782,16 @@ class ChooseInList(QtWidgets.QDialog):
         self.gridLayout.addWidget(self.escButton, 2, 2)
         self.setLayout(self.gridLayout)
         self.setWindowTitle(self.titleText)
+        self.centralwidget.resize(self.centralwidget.sizeHint())
+        # self.resize(self.tableWidget.sizeHint())
+        nb_lines = len(self.items)
+        items_width = max([len(self.items[i]) for i in range(nb_lines)])
+        print(self.listChoix)
+        win_width = max(300, items_width*8 + 100 + 40*len(self.listChoix))
+        if typ == "val":
+            win_width += 50
+        win_height = min(900, nb_lines*30 + 80)
+        self.resize(win_width, win_height)
 
     def selectall(self):
         if self.onePerCol == [0]:

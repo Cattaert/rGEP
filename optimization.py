@@ -76,6 +76,11 @@ Modified September 18, 2023 (D. Cattaeert):
     Procedure chartToDataFrame(completeName, colnames=None) modified for column
     names: if colnames is not None, columns names are taken from colnames, but
     if it is None, then columns names are taken from the chart file.
+Modified February 01, 2024 (D. Cattaert):
+    in checknonzeroSynFR()  range(4-(len(synapseName)+1)/8) replaced by
+                            range(4-int((len(synapseName)+1)/8))
+    in affichConnexionsFR() range(3-(len(synapseName[syn])+1)/8) replaced by
+                            range(3-int((len(synapseName[syn])+1)/8))
 """
 
 import class_animatLabModel as AnimatLabModel

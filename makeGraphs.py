@@ -241,7 +241,8 @@ import pandas as pd
 # from openpyxl import Workbook
 import seaborn as sns
 from scipy.stats import pearsonr
-from mpl_toolkits.mplot3d import axes3d
+# from mpl_toolkits.mplot3d import axes3d
+from mpl_toolkits.mplot3d import Axes3D
 
 from math import log as ln
 from math import sqrt as sqrt
@@ -1566,6 +1567,54 @@ def select_chartcol(optSet, colnames):
     list_gamma_neur = choose_elements_in_list(list_elem, typ, selected, text)
     return list_sensory_neur, list_alpha_neur, list_gamma_neur
 
+def graph_chart_elements(optSet, chart_path, chartName,
+                         lstChartColNam=["1FlxPotMuscle", "1ExtPotMuscle"],
+                         y_label="EMG (mV)",
+                         title="_EMG_Mvt"):
+    """
+    Uses the path, chartname to built a plot of a dataframe of chart data.
+    """
+    # EMGsNames = ['1FlxPotMuscle', '1ExtPotMuscle']
+    colnames = optSet.chartColNames
+    # completeName = os.path.join(chart_path, chartName)
+    completeName = chart_path + "/" + chartName
+    baseName = os.path.splitext(chartName)[0]
+    
+    my_palette = sns.color_palette("tab10")
+    # Tdf[:0.6]
+    (L, df, titre, tabparams) = chartToDataFrame(completeName,
+                                                 colnames=colnames)
+    df.index = df.Time
+    df[:0.6]
+
+    plt.figure(figsize=(20, 8), dpi=50)
+
+    plt.subplot(121)
+    plt.rc('xtick', labelsize=14)   # fontsize of the x tick labels
+    plt.rc('ytick', labelsize=14)   # fontsize of the x tick labels
+    for col in range(len(lstChartColNam)):
+        print()
+        df_EMG = df[:][lstChartColNam[col]] * 1000
+        df_EMG.loc[4:7].plot(color=my_palette[col])
+    unitx = "Time (s)"
+    # unity = "EMG (mV)"
+    unity = y_label
+    plt.xlabel(unitx, fontsize=18)
+    plt.ylabel(unity, fontsize=18)
+    plt.legend(fontsize=12)
+
+    plt.subplot(122)
+    df.loc[4:7]["Elbow"].plot(color="c")
+    unitx = "Time (s)"
+    unity = "Elbow Mvt (degres)"
+    plt.xlabel(unitx, fontsize=18)
+    plt.ylabel(unity, fontsize=18)
+    plt.legend(fontsize=12)
+
+    plt.suptitle(titre, fontsize=20)
+    plt.savefig(os.path.join(chart_path, baseName + title + '.pdf'))
+    #plt.savefig(os.path.join(chart_path, baseName + title + '.eps'))
+    plt.show()
 
 def graph_triphasic(optSet, chart_path, chartName, EMGsNames):
     """
@@ -4110,8 +4159,8 @@ class Visualizer3D(QtWidgets.QDialog, Ui_Visu3D):
 
         self.verticalLayout.addWidget(self.canvas)
         # self.visu_3d.gridLayout.addWidget(self.canvas)
-        self.axis = self.figure.add_subplot()
-        self.axis = self.figure.gca(projection='3d')
+        self.axis = self.figure.add_subplot(1, 1, 1, projection='3d')
+        # self.axis = self.figure.gca(projection='3d')
         # self.figure.set_size_inches(18.5, 10.5)
         self.axis.set_xlabel("xlabel")
         self.axis.set_ylabel("ylabel")
@@ -6032,7 +6081,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         copyFileDir(new_run_dir, aprojSaveDir, copy_dir=0)
 
         # ====== the index of df_glob is used to create seeds_selected =======
-        # variable in GEP_GUI. We will use "run_seed_param" from GEP_GUI to
+        # variable in GEP_GUI. We will use "run_selected_param" from GEP_GUI to
         # run the restrained parameter sets.
         # To do this we copy anmatsimdir to GEP_GUI
         # and we copy new_run_dir to GEP_GUI.newSeedFolder variable
@@ -6041,12 +6090,13 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
                                                 for sel in seeds_selected]
         """
         self.GUI_Gr_obj.mafen.seeds_selected = seeds_selected
+        self.GUI_Gr_obj.mafen.rg_bhv_selected = seeds_selected
         self.GUI_Gr_obj.mafen.animatsimdir = animatsimdir
-        self.GUI_Gr_obj.mafen.newSeedFolder = new_run_dir
+        self.GUI_Gr_obj.mafen.newDestFolder = new_run_dir
         gepdatadir = new_run_dir + "/GEPdata"
         if not os.path.exists(gepdatadir):
             os.makedirs(gepdatadir)
-        self.GUI_Gr_obj.mafen.run_seed_param()
+        self.GUI_Gr_obj.mafen.run_selected_param()
         """
         self=MyWin.graph_settings
         for idOK in range(10):
@@ -6072,7 +6122,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.mafen.seeds_selected = seeds_selected
         self.GUI_Gr_obj.mafen.optSet.spanStim = 5
         self.GUI_Gr_obj.mafen.optSet.spanSyn = 5
-        self.GUI_Gr_obj.mafen.saves_seeds(seedDirCreate=False)
+        self.GUI_Gr_obj.mafen.saves_newGEPdata(seedDirCreate=False)
         
         for idx in range(len(df_bhvremain)):
             print(idx)
@@ -7650,7 +7700,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             ax.plot(glob_df.loc[:, var1].values,
                     glob_df.loc[:, var2].values,
                     color=palette[0],
-                    marker='o', markersize=1, linewidth=0)
+                    marker='o', markersize=5, linewidth=0)
             ax.set_xlabel(var1, labelpad=18, fontsize=10)
             ax.set_ylabel(var2, labelpad=18, fontsize=10)
 
@@ -7810,7 +7860,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 lastrow = (len(listX) - len(listX) % 3) // 3
                 for par_idx, setX in enumerate(listX):
                     col = par_idx % 3   # modulo function -> 0 1 2 0 1 2 etc.
-                    row = (par_idx - col) / 3
+                    row = int((par_idx - col) / 3)
                     print(row, col)
                     x = np.array(glob_df.loc[:, setX])
                     if factor is not None:
@@ -8532,8 +8582,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 gr_typ = choose_one_element_in_list(title, list_elem, typ)
                 if gr_typ == "EMG":
                     self.makeGraphFromChart(self.fname,
-                                            EMGsNames = ['1FlxPotMuscle',
-                                                         '1ExtPotMuscle'])
+                                            lstChartColNam=['1FlxPotMuscle',
+                                                              '1ExtPotMuscle'])
                 else:
                     self.makeGraphFromChart(self.fname)
 
@@ -8560,7 +8610,93 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             fname = mypath + "/" + fic
             print(fname)
             self.makeGraphFromChart(fname)
-            
+
+# TODO: to be continued...
+    def neurons_vs_bhv(self, lstChartColNam):
+        """
+        Parameters
+        ----------
+        [el1, el2,...] = list of chart column names
+        el1 : chart element_1 (for example "1FlxAlpha")
+            this is one of the elements of the txt chart file.
+        el2 : chart element_2 (for example "1ExtAlpha")
+            this is one of the elements of the txt chart file.
+         ...
+        eln : chart element_n (for example "1FlxGamma")
+            this is one of the elements of the txt chart file.
+
+        Returns
+        -------
+        self.df_chart_elements
+        dataframe with columns: chartnames, varmse, statangle, ampl, max_speed,
+        dur_mvt2, origine, run-rg, el1, el2,... eln
+
+        """
+        optSet = self.optSet
+        
+        # lstChartColNam = ["1FlxIa", "1ExtIa"]
+        # lstChartColNam = ["1FlxAlpha", "1ExtAlpha"]
+        # lstChartColNam = ["1FlxIa", "1ExtIa", "1FlxAlpha", "1ExtAlpha"]
+        print("Select neurons to analyse (validate the selection window)")
+        selected = optSet.sensColChartNames
+        list_elem = optSet.chartColNames
+        typ = "chart_col"
+        text = "select sensory neurons to plot and analyse"
+        list_neur = choose_elements_in_list(list_elem, typ, selected, text)
+        self.make_bhvpardf()
+        print(self.listGEPFolders)
+        self.nbExpe = len(self.listGEPFolders)
+        if self.nbExpe == 1:
+            save_path = self.listGEPFolders[0]
+        else:
+            save_path = self.graph_path
+        self.chooseChartFromPar(lstChartColNam=list_neur,
+                                y_label="Neurons pot (mV)",
+                                title='_NeurVsBhv') 
+        self.newdf_chart = copy.deepcopy(self.df_chart)
+        
+        """
+        ======================================================================
+        Extraction of elements from each selected neuron in each chart
+        ======================================================================
+        """
+        elem = []
+        for colname in list_neur:
+            elem.append([])
+        
+        for fold_idx, GEPfold in enumerate(self.listGEPFolders):
+            df_chart_fold = self.df_chart["origine"] == fold_idx
+            df_chart = self.df_chart[df_chart_fold]
+        
+            for chartName in df_chart["chart"]:
+                print(chartName, end="")
+                colnames = self.optSet.chartColNames
+                chart_path = os.path.split(GEPfold)[0] + '/GEPChartFiles'
+                completeName = os.path.join(chart_path, chartName)
+                (L, df, titre, tabparams) = chartToDataFrame(completeName,
+                                                             colnames=colnames)
+                df.index = df.Time
+                # get activity value0, value1, etc.. of selected neurons
+                # and add each of these global values to the corresponding
+                # element:
+                # elem[0].append(value0)
+                # elem[1].append(value1)
+                # elem[2].append(value2)
+                # elem[3].append(value3)
+                # etc...
+        """
+        ======================================================================
+        """
+
+
+        """
+        ======================================================================
+        add new columns in the newdf_chart for activities of selected neurons
+        ======================================================================
+        """
+        for idx, colname in enumerate(list_neur):
+            self.newdf_chart[colname] = elem[idx]
+
     def analyze_triphasic(self):
         self.make_bhvpardf()
         print(self.listGEPFolders)
@@ -8591,7 +8727,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 (L, df, titre, tabparams) = chartToDataFrame(completeName,
                                                              colnames=colnames)
                 df.index = df.Time
-                df_EMG = df[5:7][EMGsNames] * 1000
+                df_EMG = df.loc[5:7][EMGsNames] * 1000
                 firstmaxEMG0 = df_EMG[5:5.2][EMGsNames[0]].max()
                 firstt0max = df_EMG[5:5.2][EMGsNames[0]].idxmax()
                 minEMG0 = df_EMG[firstt0max:7][EMGsNames[0]].min()
@@ -8623,7 +8759,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.df_chart["FlxTwoPeaks"] = crit1
         self.df_chart["FlxTo0BetwPeaks"] = crit2
         self.df_chart["ExtOnePeak"] = crit3
-        self.df_chart.to_csv(save_path + "/df_chart.csv")
+        self.df_chart.to_csv(save_path + "/df_chart_tri.csv")
         
         """
         res = (QtWidgets.QFileDialog.
@@ -8665,10 +8801,12 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.fname = res
         print(self.fname)
         self.makeGraphFromChart(self.fname,
-                                EMGsNames = ['1FlxPotMuscle',
-                                             '1ExtPotMuscle'])
+                                lstChartColNam=['1FlxPotMuscle',
+                                                '1ExtPotMuscle'])
 
-    def chooseChartFromPar(self):
+    def chooseChartFromPar(self, lstChartColNam=['1FlxPotMuscle',
+                                                 '1ExtPotMuscle'],
+                           y_label="EMG (mV)", title='_EMG_Mvt'):
         """
         This method is called from makegr_chart_tcourse() method when a .par
         file is selected. It allows the user to select among the charts whose
@@ -8676,7 +8814,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         1) opens the datastructure;
         2) calls build_df_chart() new method that will build a dataframe
             containing all chartnames, varmse, startangle, ampl, maxs_peed and
-            dur_mvt2 and the original rg of of the run. This database is savec
+            dur_mvt2 and the original rg of of the run. This database is saved
             to charts_infos.csv in GEPdata directory;
         3) Open dialog boxes asking for which parameters to use for selecting
             the chart (ampl, max_speed, etc...)
@@ -8737,8 +8875,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 print(full_chartname)
                 if rep:
                     self.makeGraphFromChart(full_chartname,
-                                            EMGsNames = ['1FlxPotMuscle',
-                                                         '1ExtPotMuscle'])
+                                            lstChartColNam=lstChartColNam,
+                                            y_label=y_label,
+                                            title=title)
+
 
     def build_df_chart(self):
         """
@@ -8838,12 +8978,15 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         return df_chart
 
     def makeGraphfromFitCourse(self, fname):
-        fname = self.fname
+        # fname = self.fname
         name = os.path.split(fname)[-1]
         path = os.path.split(fname)[0:-1][0]
         graphfromFitCourse(path, name)
 
-    def makeGraphFromChart(self, fname, EMGsNames=[]):
+    def makeGraphFromChart(self, fname,
+                           lstChartColNam=[],
+                           y_label="EMG (mV)",
+                           title="_EMG_Mvt"):
         # fname = self.fname
         chartName = os.path.split(fname)[-1]
         path = os.path.split(fname)[0:-1][0]
@@ -8851,11 +8994,13 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         templateFileName = os.path.join(animatsimdir,
                                         "ResultFiles", "template.txt")
         optSet = self.optSet
-        if EMGsNames == []:
+        if lstChartColNam == []:
             graphfromchart(optSet, path, chartName, templateFileName)
         else:
-            EMGsNames = ['1FlxPotMuscle', '1ExtPotMuscle']
-            graph_triphasic(optSet, path, chartName, EMGsNames)
+            # lstChartColNam = ['1FlxPotMuscle', '1ExtPotMuscle']
+            graph_chart_elements(optSet, path, chartName,
+                                 lstChartColNam, y_label=y_label,
+                                 title=title)
 
     def make_radar_from_csv(self):
         """
