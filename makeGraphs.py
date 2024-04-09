@@ -6135,7 +6135,12 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
             self.GUI_Gr_obj.mafen.checkChartComment(chartdir, chartName, idx)
             # graphfromchart(optSet, chartdir, chartName, templateFileName)
             chartFullName = chartdir + "/" + chartName
-            testVarMsePlot(optSet, chartFullName, interval=1./8)
+            try:
+                testVarMsePlot(optSet, chartFullName, interval=1./8)
+            except Exception as e:
+                None
+                if verbose > 2:
+                    print(e)
 
 
     def choose_variables_to_plot(self):
@@ -7345,7 +7350,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         # self.plot_map_params(df_parremain)
         # ============ positionning the paramPlot windows on screen ===========
         nb_pargraphs = len(self.mafen.listDicGraphs)
-        parwin_width = (sg.width()-100)/nb_pargraphs
+        parwin_width = int((sg.width()-100)/nb_pargraphs)
         """
         if parwin_width > 256:
             parwin_width = 256
