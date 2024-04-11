@@ -241,6 +241,10 @@ import pandas as pd
 # from openpyxl import Workbook
 import seaborn as sns
 from scipy.stats import pearsonr
+from scipy.signal import find_peaks_cwt
+from scipy.signal import find_peaks
+from scipy.signal import lfilter
+from itertools import groupby
 # from mpl_toolkits.mplot3d import axes3d
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -2168,6 +2172,7 @@ def buildStpDiscretCol(df_glob, factor):
 
     # =============    creates new "color" & factor df    ==============
     codeCoul_df = copy.deepcopy(df_glob[[factor]])
+    codeCoul_df.dropna(inplace=True)
     rg = codeCoul_df.index
     codeCoul_df.loc[:, 'rg'] = rg   # index is now in a new column 'rg'
     codeCoul_df.sort_values(factor, axis=0, ascending=True,
@@ -4080,6 +4085,18 @@ def ss_titre_to_txt(ss_titre):
     return "_{}".format(txt)
 
 
+def look_for_peaks(data):
+    start = 0
+    sequence = []
+    for key, group in groupby(data):
+        sequence.append((key, start))
+        start += sum(1 for _ in group)
+
+    for (b, bi), (m, mi), (a, ai) in zip(sequence, sequence[1:], sequence[2:]):
+        if b < m and a < m:
+            yield m, mi
+
+
 class Ui_Visu3D(object):
     def setupUi(self, Visu3D):
         self.Visu3D = Visu3D
@@ -5711,9 +5728,10 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
 #   TODO
 class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
-    def __init__(self, listpar, listbhv, GUI_Gr_obj, parent=None):
+    def __init__(self, listpar, listbhv, df, GUI_Gr_obj, parent=None):
         super(Graph_Setting, self).__init__(parent)
         self.GUI_Gr_obj = GUI_Gr_obj
+        self.df = df
         self.resize(300, 280)
         # Create some widgets to be placed inside
         """
@@ -5724,10 +5742,11 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         # self.choose_var_btn.clicked.connect(self.choose_variables_to_plot)
         self.set_bhv_limits_btn = QtWidgets.QPushButton('select bhv in limits')
         self.set_bhv_limits_btn.clicked.connect(self.set_bhv_limits)
-        self.run_selected_btn = QtWidgets.QPushButton('graph chart selected bhv')
+        self.run_selected_btn = QtWidgets.QPushButton(
+            'Run and Build charts of selected bhv')
         self.run_selected_btn.clicked.connect(self.chartgraph_selected_bhv)        
         self.make_graphs_btn = QtWidgets.QPushButton("make graph'series")
-        self.make_graphs_btn.clicked.connect(self.make_graphs)
+        self.make_graphs_btn.clicked.connect(self.make_graphs_series)
         self.make_single_graph_btn = QtWidgets.QPushButton('make single graph')
         self.make_single_graph_btn.clicked.connect(self.make_single_graph)
         self.make_matrix_graph_btn = QtWidgets.QPushButton('make matrix graph')
@@ -5738,6 +5757,9 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.btn_quit = QtWidgets.QPushButton('QUIT')
         self.btn_quit.clicked.connect(self.closeIt)
 
+        if self.df is not None:
+            self.run_selected_btn.setEnabled(False)
+        """
         buttonLayout1 = QtWidgets.QHBoxLayout()
         self.check1 = QtWidgets.QCheckBox("Checkbox1")
         self.check1.setChecked(True)
@@ -5750,18 +5772,18 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         # self.check2.setChecked(True)
         self.check2.stateChanged.connect(lambda: self.btnstate(self.check2))
         # check2.setText("Checkbox 2")
-
+        
         self.bg = QtWidgets.QButtonGroup()
         self.bg.addButton(self.check1, 1)
         self.bg.addButton(self.check2, 2)
         self.bg.buttonClicked[QtWidgets.QAbstractButton].connect(self.btngroup)
-
+        
         # ------------------------------------------------
         buttonLayout1.addWidget(self.check1)
         buttonLayout1.addItem(spacerItem)    # allows line expansion
         buttonLayout1.addWidget(self.check2)
         # ------------------------------------------------
-
+        """
         # text = QtWidgets.QLineEdit('enter text')
         self.listw = QtWidgets.QListWidget()
         # self.plot = pg.PlotWidget()
@@ -5782,12 +5804,16 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         layout.addWidget(self.make_single_graph_btn, 5, 0)
         layout.addWidget(self.make_matrix_graph_btn, 6, 0)
         layout.addWidget(self.make_3d_graph_btn, 7, 0)
-
+        """
         layout.addLayout(buttonLayout1, 8, 0, 1, 1)
+        """
         layout.addWidget(self.btn_quit, 9, 0)      # goes in bottom(3)-left
         # layout.addWidget(self.plot, 0, 1, 3, 1)  # plot goes on right side,
         #                                          # spanning 3 rows
-        self.setWindowTitle("Global df (par and bhv) analysis")
+        if self.df is None:
+            self.setWindowTitle("Global df (par and bhv) analysis")
+        else:
+            self.setWindowTitle("Global chart df (bhv, par and neur) analysis")
         self.to_init()
 
     def screen_loc(self, xshift=0, yshift=0):
@@ -5799,6 +5825,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.move(x, y)
 
     def to_init(self):
+        # self=MyWin.graph_settings
         self.rootdir = ""
         self.scale_x = self.GUI_Gr_obj.scale_x
         self.scale_y = self.GUI_Gr_obj.scale_y
@@ -5852,7 +5879,10 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selected_two = []
         self.selected_three = []
         self.selectedCols = []
+        if self.df is not None:
+            self.set_bhv_limits()
 
+    """
     def btnstate(self, b):
         if b.text() == "Checkbox1":
             if b.isChecked() is True:
@@ -5872,7 +5902,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
             print(btn.text() + " Do its stuff -> action 1")
         else:
             print(btn.text() + " Do its stuff -> action 2")
-
+    """
     def affich(self):
         x = np.random.normal(size=1000)
         y = np.random.normal(size=1000)
@@ -5949,11 +5979,16 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
 
     def restrain_to_bhv_set(self):
         """
-        Select bhV that are in the limits of bhv_set. Uses the indexes of those
-        bhv data (df_bhvremain) to also select corresponding parameters
-        (df_parremain). Then uses these new df_bhvremain and df_parremain to
-        build the new df_glob (with a call to extract_new_df function). Finally
-        re-plots the selected parameters in param windows.
+        Select bhV that are in the limits of bhv_set.
+        If self.df is None :
+            Uses the indexes of those bhv data (df_bhvremain) to also select
+            corresponding parameters (df_parremain). Then uses these new
+            df_bhvremain and df_parremain to build the new df_glob (with a
+            call to extract_new_df function). Finally re-plots the selected
+            parameters in param windows.
+        If self.df is not None (call to Graph_Setting included chart_df_glob):
+            directly restrict a copy of df to the limits of bhv_set and
+            re-plots the selected bhv and param windows.
         """
         df_bhv = copy.deepcopy(self.GUI_Gr_obj.df_bhvremain)
         df_par = copy.deepcopy(self.GUI_Gr_obj.df_parremain)
@@ -5963,9 +5998,15 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.bhv_set = {'endangle.min': 0, 'endangle.max': 100,
                         "dur_mvt2.min": 0.100, "dur_mvt2.max": 1.400}
         """
+
         res = self.GUI_Gr_obj.extract_new_df(df_par, df_bhv,
                                              self.GUI_Gr_obj.bhv_set)
         df_glob, ss_titre = res[0], res[1]
+        if self.df is not None:
+            df_glob = self.df
+            index = list(self.df["rgserie"])
+        else:
+            index = df_glob.index
 
         self.behav_col = self.GUI_Gr_obj.behav_col
         bhv_xmin = df_bhv[df_bhv.columns[self.behav_col[0]]].min()/self.scale_x
@@ -5973,22 +6014,22 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         bhv_ymin = df_bhv[df_bhv.columns[self.behav_col[1]]].min()/self.scale_y
         bhv_ymax = df_bhv[df_bhv.columns[self.behav_col[1]]].max()/self.scale_y
 
-        self.GUI_Gr_obj.plot_map_behav(df_bhv.loc[df_glob.index],
+        self.GUI_Gr_obj.plot_map_behav(df_bhv.loc[index],
                                        xmin=bhv_xmin, xmax=bhv_xmax,
                                        ymin=bhv_ymin, ymax=bhv_ymax)
 
-        self.GUI_Gr_obj.mafen.df_bhvremain = df_bhv.loc[df_glob.index]
-        self.GUI_Gr_obj.mafen.df_parremain = df_par.loc[df_glob.index]
-        self.GUI_Gr_obj.mafen.source_df_bhvremain = df_bhv.loc[df_glob.index]
-        self.GUI_Gr_obj.mafen.source_df_parremain = df_par.loc[df_glob.index]
+        self.GUI_Gr_obj.mafen.df_bhvremain = df_bhv.loc[index]
+        self.GUI_Gr_obj.mafen.df_parremain = df_par.loc[index]
+        self.GUI_Gr_obj.mafen.source_df_bhvremain = df_bhv.loc[index]
+        self.GUI_Gr_obj.mafen.source_df_parremain = df_par.loc[index]
         self.GUI_Gr_obj.mafen.bhvPlot.plot_item.clearPlots()
-        self.GUI_Gr_obj.plot_df_bhv(df_bhv.loc[df_glob.index],
+        self.GUI_Gr_obj.plot_df_bhv(df_bhv.loc[index],
                                     xmin=bhv_xmin*self.scale_x,
                                     xmax=bhv_xmax*self.scale_x,
                                     ymin=bhv_ymin*self.scale_y,
                                     ymax=bhv_ymax*self.scale_y)
         self.GUI_Gr_obj.mafen.clearParam()
-        self.GUI_Gr_obj.mafen.param_in_blue(df_par.loc[df_glob.index])
+        self.GUI_Gr_obj.mafen.param_in_blue(df_par.loc[index])
         return df_glob, ss_titre
 
     def chartgraph_selected_bhv(self):
@@ -6168,7 +6209,13 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selected_par = self.listDicSelectedPar[0][listChoix[0]]
 
         listChoix = ["behaviours"]
-        self.items = self.GUI_Gr_obj.bhv_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names = self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names
+        # self.items = self.GUI_Gr_obj.bhv_names
         titleText = "Select behaviour cues for analysis"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6184,7 +6231,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selected_bhv = self.listDicSelectedBhv[0][listChoix[0]]
 
         listChoix = ["selectedCol"]
-        self.items = self.selected_par + self.selected_bhv
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names = self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.selected_par + self.selected_bhv
         titleText = "Select variable displayed as color scale"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6210,7 +6264,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         Select also a single variale for the color scale
         """
         listChoix = ["selectedCols"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select variables for matrix scatter plot"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6226,7 +6287,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selectedCols = self.listDicSelCols[0][listChoix[0]]
 
         listChoix = ["selectedCol"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select variable displayed as color scale"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6249,8 +6317,15 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         """
         Choose X and Y variables and variable for color to plot a scatterplot
         """
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         listChoix = ["X", "Y"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select two variables for plot"
         while ((self.lstDicSelcXY[0][listChoix[0]] == [])
                or (self.lstDicSelcXY[0][listChoix[1]] == [])
@@ -6275,7 +6350,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         print(self.selected_two)
 
         listChoix = ["selectedCol"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select variable displayed as color scale"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6299,7 +6381,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         select a variable name in self.df_glob for color scale
         """
         listChoix = ["selectedCol"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select variable displayed as color scale"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6320,7 +6409,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         Choose X Y and Z variables for 3d_plot and variable for color scale
         """
         listChoix = ["X", "Y", "Z"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select three variables for plot"
         """
         while ((self.lstDicSelcXYZ[0][listChoix[0]] == [])
@@ -6349,7 +6445,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         print(self.selected_three)
 
         listChoix = ["selectedCol"]
-        self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
+        par_names = self.GUI_Gr_obj.par_names
+        if self.df is not None:
+            bhv_names = self.GUI_Gr_obj.list_bhvVar \
+                      + self.GUI_Gr_obj.neur_act_names
+        else:
+            bhv_names =self.GUI_Gr_obj.bhv_names
+        self.items = bhv_names + par_names
+        # self.items = self.GUI_Gr_obj.par_names + self.GUI_Gr_obj.bhv_names
         titleText = "Select variable displayed as color scale"
         rep = ChooseInList.listTransmit(parent=None,
                                         graphNo=0,
@@ -6368,7 +6471,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.three_selected_var = self.selected_three
         self.GUI_Gr_obj.factor = self.selected_factor[0]
 
-    def make_graphs(self):
+    def make_graphs_series(self):
         """
         doc string
         """
@@ -6429,6 +6532,8 @@ class Ui_GrChart(object):
             QtWidgets.QPushButton("&Make graph (chart, timeCourse)")
         self.gr_chart_btn = \
             QtWidgets.QPushButton("&Make graphs (chartDir)")
+        self.analyze_neur_bhv_btn = \
+            QtWidgets.QPushButton("&Analyze neurons activity vs bhv")
         self.analyze_triphasic_btn = \
             QtWidgets.QPushButton("&Analyze triphasic")
         self.radar_Button = QtWidgets.QPushButton("&Make Radar from .csv")
@@ -6446,6 +6551,7 @@ class Ui_GrChart(object):
         buttonLayout1.addWidget(self.analyzeCSV_Button)
         buttonLayout1.addWidget(self.gr_chart_tcourse_btn)
         buttonLayout1.addWidget(self.gr_chart_btn)
+        buttonLayout1.addWidget(self.analyze_neur_bhv_btn)
         buttonLayout1.addWidget(self.analyze_triphasic_btn)
         buttonLayout1.addWidget(self.GEPgraphMetric_button)
 
@@ -6555,6 +6661,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.analyzeCSV_Button.clicked.connect(self.analyzeCSVPandas)
         self.gr_chart_tcourse_btn.clicked.connect(self.makegr_chart_tcourse)
         self.gr_chart_btn.clicked.connect(self.make_all_chart)
+        self.analyze_neur_bhv_btn.clicked.connect(self.analyze_neur_bhv)
         self.analyze_triphasic_btn.clicked.connect(self.analyze_triphasic)
         self.radar_Button.clicked.connect(self.make_radar_from_csv)
         self.GEPgraphMetric_button.clicked.connect(self.graphMetrics_GEP)
@@ -6652,7 +6759,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         listpar = self.par_names
         listbhv = self.bhv_names
         # =====================================================================
-        self.graph_settings = Graph_Setting(listpar, listbhv, self)
+        self.graph_settings = Graph_Setting(listpar, listbhv, None, self)
         self.graph_settings.show()
 
         # ========= positionning the Graph_Setting window on screen ===========
@@ -8616,8 +8723,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             print(fname)
             self.makeGraphFromChart(fname)
 
-# TODO: to be continued...
-    def neurons_vs_bhv(self, lstChartColNam):
+
+
+
+    def analyze_neur_bhv(self):
         """
         Parameters
         ----------
@@ -8632,48 +8741,66 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
         Returns
         -------
-        self.df_chart_elements
-        dataframe with columns: chartnames, varmse, statangle, ampl, max_speed,
-        dur_mvt2, origine, run-rg, el1, el2,... eln
+        self.df_chart_elements dataframe with columns:
+            chartnames, varmse, statangle, ampl, max_speed,
+            dur_mvt2, origine, run-rg, el1, el2,... eln
 
         """
+
+
+        """
+        =====================================================================
+        creates a new self.df_parremain and a new df_bhvremain
+        =====================================================================
+        """
+        self.make_bhvpardf()
         optSet = self.optSet
-        
-        # lstChartColNam = ["1FlxIa", "1ExtIa"]
-        # lstChartColNam = ["1FlxAlpha", "1ExtAlpha"]
-        # lstChartColNam = ["1FlxIa", "1ExtIa", "1FlxAlpha", "1ExtAlpha"]
+        # list_neur = ["1FlxIa", "1ExtIa"]
+        # list_neur = ["1FlxAlpha", "1ExtAlpha"]
+        # list_neur = ["1FlxIa", "1ExtIa", "1FlxAlpha", "1ExtAlpha"]
+
+        """
+        =====================================================================
+        creates new_sub_df_chart with selected neurons present in the chart
+        =====================================================================
+        """
         print("Select neurons to analyse (validate the selection window)")
         selected = optSet.sensColChartNames
         list_elem = optSet.chartColNames
         typ = "chart_col"
         text = "select sensory neurons to plot and analyse"
         list_neur = choose_elements_in_list(list_elem, typ, selected, text)
-        self.make_bhvpardf()
         print(self.listGEPFolders)
         self.nbExpe = len(self.listGEPFolders)
         if self.nbExpe == 1:
             save_path = self.listGEPFolders[0]
         else:
             save_path = self.graph_path
+
+        # Buid the self.df_chart by calling self.chooseChartFromPar() method
         self.chooseChartFromPar(lstChartColNam=list_neur,
                                 y_label="Neurons pot (mV)",
-                                title='_NeurVsBhv') 
-        self.newdf_chart = copy.deepcopy(self.df_chart)
+                                title='_NeurVsBhv')
+        print(self.list_bhvVar)
+        # self.newdf_chart = copy.deepcopy(self.df_chart)
+        self.new_sub_df_chart = copy.deepcopy(self.sub_df_chart)
         
         """
         ======================================================================
         Extraction of elements from each selected neuron in each chart
         ======================================================================
         """
-        elem = []
+        elem = {}
+        list_calc = ["_startval", "_1stmax", "_1stmax_t"]
         for colname in list_neur:
-            elem.append([])
+            for idx, calc in enumerate(list_calc):
+                elem[colname + list_calc[idx]] = []
         
         for fold_idx, GEPfold in enumerate(self.listGEPFolders):
-            df_chart_fold = self.df_chart["origine"] == fold_idx
-            df_chart = self.df_chart[df_chart_fold]
+            df_chart_fold = self.new_sub_df_chart["origine"] == fold_idx
+            sub_df_chart = self.new_sub_df_chart[df_chart_fold]
         
-            for chartName in df_chart["chart"]:
+            for chartName in sub_df_chart["chart"]:
                 print(chartName, end="")
                 colnames = self.optSet.chartColNames
                 chart_path = os.path.split(GEPfold)[0] + '/GEPChartFiles'
@@ -8681,26 +8808,84 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 (L, df, titre, tabparams) = chartToDataFrame(completeName,
                                                              colnames=colnames)
                 df.index = df.Time
+                df_n = copy.deepcopy(df.loc[4.5:9][list_neur] * 1000)
+                df_n["rg"] = np.arange(len(df_n))
                 # get activity value0, value1, etc.. of selected neurons
                 # and add each of these global values to the corresponding
                 # element:
-                # elem[0].append(value0)
-                # elem[1].append(value1)
-                # elem[2].append(value2)
-                # elem[3].append(value3)
-                # etc...
-        """
-        ======================================================================
-        """
+                for neur in list_neur:
+                    list_rg_pk, list_rg_min = get_peaks_and_troughs(df_n, neur,
+                                                                    chartName)
+                    for idx, calc in enumerate(list_calc):
+                        if list_calc[idx] == "_startval":
+                            list_val = elem[neur + list_calc[idx]]
+                            list_val.append(df_n.iloc[0][neur])
+                            elem[neur+list_calc[idx]] = list_val
+                        elif list_calc[idx] == "_1stmax":
+                            list_val = elem[neur + list_calc[idx]]
+                            list_val.append(df_n.iloc[list_rg_pk[0]][neur])
+                            elem[neur+list_calc[idx]] = list_val
+                        elif list_calc[idx] == "_1stmax_t":
+                            list_val = elem[neur + list_calc[idx]]
+                            list_val.append(df_n.index[list_rg_pk[0]])
+                            elem[neur+list_calc[idx]] = list_val
 
+        """
+        ======================================================================
+        add new columns in new_sub_df_chart for activities of selected neurons
+        ======================================================================
+        """
+        neur_act_names = []
+        for neur in list_neur:
+            for idx, calc in enumerate(list_calc):
+                new_column_name = neur+list_calc[idx]
+                self.new_sub_df_chart[new_column_name] = elem[new_column_name]
+                neur_act_names.append(new_column_name)
+        self.neur_act_names = neur_act_names
 
         """
         ======================================================================
-        add new columns in the newdf_chart for activities of selected neurons
+        creates a chart_df_glob including bhv, neur and params
         ======================================================================
         """
-        for idx, colname in enumerate(list_neur):
-            self.newdf_chart[colname] = elem[idx]
+        df_par = self.df_parremain.loc[list(self.new_sub_df_chart["run_rg"])]
+        self.df_chart_par = copy.deepcopy(df_par)
+        self.df_chart_par.index = np.arange(len(self.df_chart_par))
+        self.clean_sub_df_chart = self.new_sub_df_chart.drop(
+            ['origine', 'run_rg'], axis=1)
+        chart_glob_df = pd.concat([self.clean_sub_df_chart,
+                                   self.df_chart_par], axis=1)
+        self.chart_glob_df = chart_glob_df
+        self.chart_glob_df.to_csv(save_path + "/df_chart_bhv_neur_param.csv")
+        self.chart_glob_df = pd.read_csv(
+            save_path+"/df_chart_bhv_neur_param.csv"
+            )
+        self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'], axis=1)
+        self.chart_glob_df.dropna(inplace=True)
+
+        """
+        ======================================================================
+        Creates an instance of Graph_setting command window
+        ======================================================================
+        """
+        listpar = self.par_names
+        listbhv = self.bhv_names
+        self.graph_settings = Graph_Setting(listpar, listbhv,
+                                            self.chart_glob_df, self)
+        self.graph_settings.show()
+        # ========= positionning the Graph_Setting window on screen ===========
+        sg = QtWidgets.QDesktopWidget().screenGeometry()
+        mywin_height = self.geometry().height()
+        graphSet_height = self.graph_settings.geometry().height()
+        # graphSet_width = self.graph_settings.geometry().width()
+        xshift = 10
+        yshift = sg.height() - graphSet_height - mywin_height - 40
+        self.graph_settings.screen_loc(xshift=xshift, yshift=yshift)
+        # =====================================================================
+
+# TODO: to be continued...link with  global_df   anaysis
+        
+
 
     def analyze_triphasic(self):
         self.make_bhvpardf()
@@ -8829,12 +9014,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         # print(self.datastructure)
         self.df_chart = self.build_df_chart()
         df_chart = self.df_chart
-        list_par = [u'varmse', u'startangle', u'ampl',
+        list_bhvVar = [u'varmse', u'startangle', u'ampl',
                     u'max_speed', u'dur_mvt2']
+        self.list_bhvVar = list_bhvVar
         typ = "chart_col"
         selected = ["ampl"]
-        text = "selection on which Behavior feature?"
-        selected_par = choose_elements_in_list(list_par, typ, selected, text)
+        text = "selection on which Behavior feature(s)?"
+        selected_par = choose_elements_in_list(list_bhvVar,
+                                               typ, selected, text)
         sub_df_chart = copy.deepcopy(df_chart)
         for par in selected_par:
             min_par = min(df_chart[par])
@@ -8862,6 +9049,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             sel_df_chart = sub_df_chart[par] <= float(self.range_chartplot[1])
             sub_df_chart = sub_df_chart[sel_df_chart]
             print(sub_df_chart)
+        self.sub_df_chart = sub_df_chart
         titre = "Plot from Charts"
         info = "Do you want to plot charts?"
         rep = dialogWindow(titre, info, details="")
@@ -9233,6 +9421,97 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             if verbose > 2:
                 print(e)
 
+
+def get_peaks_and_troughs(df_n, neur, chartName):
+    dataY = np.array(df_n[neur])
+    dataX = np.array(df_n.index)
+    end = len(df_n) - 1
+
+    n = 2  # the larger n is, the smoother curve will be
+    b = [1.0 / n] * n
+    a = 1
+    dataYY = lfilter(b, a, dataY)
+    """
+    peaks = find_peaks_cwt(dataY,
+                           widths=np.ones(dataY.shape)*2)-1
+   
+    maxim = df_n[neur].max()
+    minim = df_n[neur].min()
+    height = (maxim + minim)/2
+    peaks, _ = find_peaks(data, height=height)
+    """
+    res = list(look_for_peaks(dataYY))
+    # print(res)
+    list_rg = [pk[1] for pk in res]
+    if list_rg == []:
+        peak_time = df_n.iloc[:][neur].idxmax()
+        list_rg = [int(df_n.loc[peak_time]["rg"])]
+    if len(list_rg) > 1:
+        corrected_list_rg = \
+            [list_rg[i]
+            for i in range(len(list_rg))
+            if (abs(dataYY[list_rg[i]] - dataYY[1]) > 0.01)
+            and (dataYY[list_rg[i]] - dataYY[list_rg[i] - 20] > 0.05)]
+        if corrected_list_rg == []:
+            peak_time = df_n.iloc[list_rg][neur].idxmax()
+            corrected_list_rg = [int(df_n.loc[peak_time]["rg"])]
+        list_rg_pk = corrected_list_rg
+    else:
+        list_rg_pk = list_rg
+
+    """
+    for i in range(len(list_rg)-1):
+        print(abs(dataYY[list_rg[i+1]] - dataYY[list_rg[i]]))
+    """
+    # print(df_n.index[list_rg])
+    # print(dataY[list_rg])
+    # plt.plot(dataYY)
+    list_rg_min = []
+    plt.plot(df_n[neur], "-b", label=neur + "_" + chartName)
+    # =============  get the first value ==============
+    rg0 = 0
+    start_time = df_n.index[0]
+    start_value = df_n.iloc[0][neur]
+    plt.plot(start_time, start_value, "s")
+
+    # ===========  get the first  minimum value =======
+    rg0 = 0
+    rg1 = list_rg_pk[0]
+    if rg1 <= rg0:
+        rg1 = rg0 + 1
+    mini_time = df_n.iloc[rg0:rg1][neur].idxmin()
+    mini_value = df_n.iloc[rg0:rg1][neur].min()
+    if abs(mini_value - start_value) > 0.15:
+        mini_rg = int(df_n.loc[mini_time]["rg"])
+        list_rg_min.append(mini_rg)
+        plt.plot(mini_time, mini_value, "o")
+    
+    if len(list_rg_pk) > 1:
+        idx = 0
+        while idx < len(list_rg_pk) -1:
+            rg0 = list_rg_pk[idx]
+            rg1 = list_rg_pk[idx+1]
+            mini_time = df_n.iloc[rg0:rg1][neur].idxmin()
+            mini_value = df_n.iloc[rg0:rg1][neur].min()
+            mini_rg = int(df_n.loc[mini_time]["rg"])
+            list_rg_min.append(mini_rg)
+            plt.plot(mini_time, mini_value, "o")
+            idx += 1
+    else:
+        rg1 = list_rg_pk[0]
+        
+    if df_n.iloc[end][neur] - df_n.iloc[rg1:][neur].min() > 0.05:
+            mini_time = df_n.iloc[rg1:][neur].idxmin()
+            mini_value = df_n.iloc[rg1:][neur].min()
+            mini_rg = int(df_n.loc[mini_time]["rg"])
+            list_rg_min.append(mini_rg)
+            plt.plot(mini_time, mini_value, "o")
+    
+    #plt.plot(dataX, dataYY)
+    plt.plot(df_n.index[list_rg_pk], dataY[list_rg_pk], "x")
+    plt.legend(loc="lower right", fontsize=14)
+    plt.show()
+    return list_rg_pk, list_rg_min
 
 """
 Code lines usefull to make bhvplot(), bhnparamplot, densitycontourplot
