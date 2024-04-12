@@ -5732,6 +5732,8 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         super(Graph_Setting, self).__init__(parent)
         self.GUI_Gr_obj = GUI_Gr_obj
         self.df = df
+        self.listpar = listpar
+        self.listbhv = listbhv
         self.resize(300, 280)
         # Create some widgets to be placed inside
         """
@@ -5943,7 +5945,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
                                         titleText=titleText)
 
         self.listDicLimits_bhv = rep[0]
-        if len(self.listDicLimits_bhv[0][listChoix[0]]) == 0:
+        if rep[1] == {}:
             print("Set limits back to original")
             self.to_init()
             self.bhv_set = self.listDic_bhv_lim_val[0]
@@ -6004,7 +6006,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         df_glob, ss_titre = res[0], res[1]
         if self.df is not None:
             df_glob = self.df
-            index = list(self.df["rgserie"])
+            index = list(self.df["rg_in_whole"])
         else:
             index = df_glob.index
 
@@ -7179,6 +7181,9 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.df_bhvremain.loc[:, "rgserie"] = self.df_bhvremain.index
         self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
         self.df_parremain.loc[:, "rgserie"] = self.df_parremain.index
+        
+        self.df_parremain.index = np.arange(len(self.df_parremain))
+        self.df_bhvremain.index = np.arange(len(self.df_bhvremain))
 
         """
 #   TODO    to remind commands
@@ -8791,6 +8796,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         ======================================================================
         """
         elem = {}
+        lst_df_par = []
+        lst_df_par_index = []
         list_calc = ["_startval", "_1stmax", "_1stmax_t"]
         for colname in list_neur:
             for idx, calc in enumerate(list_calc):
@@ -8799,6 +8806,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         for fold_idx, GEPfold in enumerate(self.listGEPFolders):
             df_chart_fold = self.new_sub_df_chart["origine"] == fold_idx
             sub_df_chart = self.new_sub_df_chart[df_chart_fold]
+
+            df_par_fold_OK = self.df_parremain["origine"] == fold_idx 
+            tmp_df_par = self.df_parremain[df_par_fold_OK]
+            arr = [x for x in list(tmp_df_par.index)
+                   if tmp_df_par.loc[x]["orig_rg"]
+                   in list(sub_df_chart.run_rg)]
+            lst_df_par.append(tmp_df_par.loc[arr])
+            lst_df_par_index.append(tmp_df_par.loc[arr].index)
         
             for chartName in sub_df_chart["chart"]:
                 print(chartName, end="")
@@ -8829,7 +8844,11 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                             list_val = elem[neur + list_calc[idx]]
                             list_val.append(df_n.index[list_rg_pk[0]])
                             elem[neur+list_calc[idx]] = list_val
-
+        self.lst_df_par = lst_df_par
+        self.lst_df_par_index = lst_df_par_index
+        df_par_index = []
+        for idx in lst_df_par_index:
+            df_par_index += list(idx)
         """
         ======================================================================
         add new columns in new_sub_df_chart for activities of selected neurons
@@ -8848,17 +8867,22 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         creates a chart_df_glob including bhv, neur and params
         ======================================================================
         """
-        df_par = self.df_parremain.loc[list(self.new_sub_df_chart["run_rg"])]
+        # self.df_parremain.index = self.df_parremain.orig_rg
+        # ===== change fdatafrae indexes 
+        df_par = self.df_parremain.loc[df_par_index]
+        self.new_sub_df_chart.index = df_par_index
+        
         self.df_chart_par = copy.deepcopy(df_par)
-        self.df_chart_par.index = np.arange(len(self.df_chart_par))
+        # self.df_chart_par.index = np.arange(len(self.df_chart_par))
         self.clean_sub_df_chart = self.new_sub_df_chart.drop(
             ['origine', 'run_rg'], axis=1)
         chart_glob_df = pd.concat([self.clean_sub_df_chart,
                                    self.df_chart_par], axis=1)
+        chart_glob_df["rg_in_whole"] = df_par_index
         self.chart_glob_df = chart_glob_df
         self.chart_glob_df.to_csv(save_path + "/df_chart_bhv_neur_param.csv")
         self.chart_glob_df = pd.read_csv(
-            save_path+"/df_chart_bhv_neur_param.csv"
+            save_path + "/df_chart_bhv_neur_param.csv"
             )
         self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'], axis=1)
         self.chart_glob_df.dropna(inplace=True)
@@ -8869,7 +8893,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         ======================================================================
         """
         listpar = self.par_names
-        listbhv = self.bhv_names
+        # listbhv = self.bhv_names
+        listbhv = self.list_bhvVar
         self.graph_settings = Graph_Setting(listpar, listbhv,
                                             self.chart_glob_df, self)
         self.graph_settings.show()
