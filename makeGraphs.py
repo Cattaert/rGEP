@@ -217,6 +217,22 @@ Modified February 03, 2024 (D. Cattaert):
     In grid_method() method, derecated writing fixed:
         state_table = np.zeros(dtype=int, shape=(nbcol, nbrow))
         ('dtype=np.int' replaced by 'dtype=int')
+Modified April 12, 2024 (D. Cattaert):
+    makeGraphs.py  Bug fixed in the selection of behaviors when data
+	are from several folders. The behaviors are now selected
+	using "orig_rg" and "origine". The index of chart_global_df
+	is now compatible with indexes of df_parremain and
+	df_bhvremain
+Modified April 24, 2024 (D. Cattaert):
+	Old methods (used for the old format "experiments series")
+	have been suppressed.
+	New procedures introduced to Analyze neuron activities and par
+	vs bhv. Now it is possible to opena previously saved 
+	"df_chart_bhv_neur_param.csv" to make graphs. The new method
+	("read_csv_for_df_bhv_neur_par()") relies on a part of the old
+	"build_newdf()" method to reconstruct the df_parremain and
+	df_bhvremain dataframes.
+	To do this, "build_newdf()" has been splitted into four sub methods
 """
 import os
 from os import listdir
@@ -1319,9 +1335,6 @@ def FitCourseToDataFrame(completeName):
     dataframe = pd.DataFrame(tabFinal, columns=tabparams)
     dataframe.index = np.arange(1, len(dataframe)+1, 1)
     return (tabFinal, dataframe, tabparams, tabnewstart)
-
-
-
 
 
 def plotdataframe(dataframe, par, Deb, Fin, tabnewstart,
@@ -2432,35 +2445,6 @@ def saveCSVStructure(self):
     print("data saved to:", complete_structCSVFName)
 
 
-def readCSVStructure(self):
-    """
-    If "CSV_Struct.par" file exists in self.modeldir, reads it and gets the
-    structure of the saved graph_path and the lists of angles, constants and
-    trials that were used to build the .csv files saved in "output" folders
-    """
-    structCSVFileName = "CSV_Struct.par"
-    tab_structCSV = readTabloTxt(self.graph_path, structCSVFileName)
-    print(tab_structCSV)
-    if tab_structCSV != []:
-        ([self.graph_path], [self.rootdir],
-         self.prevListAngles, self.prevListConsts,
-         self.prevListTrials, self.prevListColNames,
-         self.prevListParams,
-         [self.strtTime, self.endTime]) = tab_structCSV
-        # self.strtTime and self.endTime red from readTablotxt are srings
-        # It is necessary to convert them into reals (float)
-        (self.strtTime, self.endTime) = (float(self.strtTime),
-                                         float(self.endTime))
-        rep = True
-    else:
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-        print("@       CSV_Struct.par does not exist or is corrupted        @")
-        print("@ Recreate the CSV files by using 'ChooseSavedSeries' button @")
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-        rep = False
-    return rep
-
-
 def getBestParamSet(graph_path, ang, const, trial):
     pathGEP = os.path.join(graph_path, ang, const, trial, "GEPdata")
     fileGEP = os.path.join(pathGEP, "GEPdata00.par")
@@ -2943,235 +2927,6 @@ def make_graph_param(graph_path, select_constVal_dir, select_angledur_dir,
         plt.show()
 
 
-def heatmap_cor_matrix(graph_path, list_df, list_df_names, graph_name):
-    """
-    Draws and saves a matrix of correlation graphs with color codes
-    """
-    for idx_df, df in enumerate(list_df):
-        colnames = list(df.columns)
-        for idx_col, col_name in enumerate(colnames):
-            if len(col_name) > 17:
-                col_name = col_name[:15]
-                # print col_name
-                colnames[idx_col] = col_name
-        # print colnames
-        df.columns = colnames
-    (mvt_by_angle, angles, durees) = get_angle_dur(list_df_names)
-    # angle_class = mvt_by_angle[0]
-    nbcol = len(mvt_by_angle[0])    # nbcol = nb of dur for each angle
-    nbrow = len(mvt_by_angle)       # nbrow = nb of angles
-
-    # draw series of 3*2 heatmap correlation matrix
-    for sh in range(nbrow/2):
-        if nbrow/2 == 1:
-            sheet = ""
-        else:
-            sheet = sh+1
-        firstcol = sh*nbcol*2
-        lastcol = sh*nbcol*2 + nbcol*2
-        print(firstcol, "to ", lastcol)
-        tmp_list_df = list_df[firstcol: lastcol]
-        nbrow = 2
-        do_heatmap_cor_matrix(graph_path, tmp_list_df, list_df_names,
-                              graph_name, sheet, nbrow, nbcol,
-                              mvt_by_angle, angles, durees)
-
-    if nbrow > nbrow/2 * 2:
-        remain = nbrow - nbrow/2 * 2
-        print(remain)       # number of remaining rows
-        firstcol = sh*nbcol*2 + nbcol*2
-        lastcol = sh*nbcol*2 + nbcol*2 + nbcol
-        print(firstcol, "to ", lastcol)
-        tmp_list_df = list_df[firstcol: lastcol]
-        nbrow = 1
-        do_heatmap_cor_matrix(graph_path, tmp_list_df, list_df_names,
-                              graph_name, sheet, nbrow, nbcol,
-                              mvt_by_angle, angles, durees)
-
-
-def do_heatmap_cor_matrix(graph_path, list_df, list_df_names,
-                          graph_name, sheet, nbrow, nbcol,
-                          mvt_by_angle, angles, durees):
-    cmap = sns.diverging_palette(220, 10, as_cmap=True)
-    list_ratios = []
-    for k in range(nbcol):
-        list_ratios.append(1)
-    # set an additional ax column for color bar
-    list_ratios.append(0.08)
-    dic_ratios = {'width_ratios': list_ratios}
-
-    fig, ax = plt.subplots(nrows=nbrow*2, ncols=nbcol+1,
-                           figsize=(8, 5.5*nbrow),
-                           dpi=140,
-                           gridspec_kw=dic_ratios)
-
-    list_g = []
-    list_dfpvals = []
-    # ========================================================================
-    # Draws and saves correlation graphs for each angle_duration contdition
-    for idx_df, df_name in enumerate(list_df_names):
-        row = int(idx_df/nbcol)
-        col = idx_df % nbcol
-        # print row, col
-        titre = "{0}".format(df_name)
-        ax[row, col].set_title(titre, fontsize=8)
-        corr = list_df[idx_df].corr()
-
-        df = list_df[idx_df]
-        # construct two arrays, one of the correlation (coeffmat)
-        # and the other of the p-vals (pvalmat)
-        coeffmat = np.zeros([df.shape[1], df.shape[1]])
-        pvalmat = np.zeros([df.shape[1], df.shape[1]])
-        for i in range(df.shape[1]):
-            # rows are the number of rows in the matrix.
-            for j in range(df.shape[1]):
-                try:
-                    corrtest = pearsonr(df[df.columns[i]],
-                                        df[df.columns[j]])
-                    coeffmat[i, j] = corrtest[0]
-                    pvalmat[i, j] = corrtest[1]
-                except ValueError:
-                    pvalmat[i, j] = None
-
-        dfpvals = pd.DataFrame(pvalmat, columns=df.columns,
-                               index=df.columns)
-        # print(dfpvals)
-        list_dfpvals.append(dfpvals)
-
-        # Draw the heatmap with correct aspect ratio
-        if col < nbcol - 1:
-            list_g.append(sns.heatmap(corr, cmap=cmap,
-                                      square=True, linewidths=.3,
-                                      cbar=False,
-                                      annot=False,
-                                      ax=ax[row, col])
-                          )
-
-            list_g[idx_df].set_ylabel('')
-            list_g[idx_df].set_xlabel('')
-            if col > 0:
-                list_g[idx_df].set_yticks([])
-        else:
-            list_g.append(sns.heatmap(corr, cmap=cmap,
-                                      square=True, linewidths=.3,
-                                      cbar=True,
-                                      cbar_kws={"shrink": .5},
-                                      vmax=1,
-                                      center=0,
-                                      vmin=-1,
-                                      cbar_ax=ax[row, col+1],
-                                      annot=False,
-                                      ax=ax[row, col])
-                          )
-
-            list_g[idx_df].set_ylabel('')
-            list_g[idx_df].set_xlabel('')
-            list_g[idx_df].set_yticks([])
-
-    # =====================================================================
-    #               Drawing the pvvalues with mask
-    # =====================================================================
-    cmap_pval = ["purple", "darkred", "red", "orange", "yellow", "white"]
-    for idx_df, df_name in enumerate(list_df_names):
-        row = int(idx_df/nbcol) + len(mvt_by_angle)
-        col = idx_df % nbcol
-        # print row, col
-        titre = "{0}".format(df_name)
-        ax[row, col].set_title(titre, fontsize=8)
-        dfpvals = list_dfpvals[idx_df]
-
-        # Masked corr matrix
-        threshold = 0.05
-        DF_mask = dfpvals.copy()
-        DF_mask[DF_mask >= threshold] = 0.06
-        if col < nbcol - 1:
-            list_g.append(sns.heatmap(DF_mask,
-                                      # cmap=sns.color_palette("hot"),
-                                      cmap=cmap_pval,
-                                      square=True, linewidths=.5,
-                                      cbar=False,
-                                      annot=dfpvals,
-                                      annot_kws={"weight": "bold",
-                                                 "fontsize": 4.5},
-                                      ax=ax[row, col])
-                          )
-            list_g[idx_df].set_ylabel('')
-            list_g[idx_df].set_xlabel('')
-            if col > 0:
-                list_g[idx_df].set_yticks([])
-
-        else:
-            list_g.append(sns.heatmap(DF_mask,
-                                      # cmap=sns.color_palette("hot"),
-                                      cmap=cmap_pval,
-                                      square=True, linewidths=.3,
-                                      cbar=True,
-                                      cbar_kws={"shrink": .3},
-                                      vmax=0.06,
-                                      # center=0,
-                                      vmin=0,
-                                      cbar_ax=ax[row, col+1],
-                                      annot=dfpvals,
-                                      annot_kws={"fontsize": 4.5,
-                                                 "weight": "bold"},
-                                      ax=ax[row, col])
-                          )
-            list_g[idx_df].set_ylabel('')
-            list_g[idx_df].set_xlabel('')
-            list_g[idx_df].set_yticks([])
-
-    # may be needed to rotate the ticklabels correctly:
-    for idx_gr, gr in enumerate(list_g):
-        # Set Y labels only on first column of graph matrix
-        if idx_gr % nbcol == 0:
-            tly = gr.get_yticklabels()
-            gr.set_yticklabels(tly, rotation=0, size=6)
-        else:
-            gr.set_ylabel('')
-            gr.set_yticks([])
-
-        # Set X labels only on last row of graph matrix
-        row = int(idx_gr/nbcol)
-        # print row
-        if row < nbrow*2 - 1:
-            gr.set_xlabel('')
-            gr.set_xticks([])
-            # tlx = gr.get_xticklabels()
-            # gr.set_xticklabels(tlx, rotation=80, size=6)
-        else:
-            tlx = gr.get_xticklabels()
-            gr.set_xticklabels(tlx, rotation=80, size=6)
-        ax[row, col].set_title(titre, fontsize=8)
-
-    maintitre = "{}".format(os.path.split(graph_path)[-1])
-    maintitre = maintitre + "\n" + "Fig_corr1_{}{}".format(graph_name, sheet)
-    plt.suptitle(maintitre, fontsize=12, y=0.95)
-    plt.savefig(r'{0}\fig_corr1_{1}{2}.eps'.format(graph_path,
-                                                   graph_name, sheet))
-
-
-def scatter_cor_matrix(graph_path, list_df, list_df_names, graph_name):
-    # ========================================================================
-    #               plot of individual scatter_matrix correlations
-    # ========================================================================
-    for idx_df, df_name in enumerate(list_df_names):
-        titre = r'fig_corr2_{0}_{1}'.format(graph_name, df_name)
-        try:
-            pd.plotting.scatter_matrix(list_df[idx_df], alpha=0.4,
-                                       marker='o',
-                                       diagonal='hist',
-                                       figsize=(15, 15),
-                                       c='red')
-            plt.suptitle(titre, fontsize=14, y=0.90)
-            plt.savefig(r'{0}\fig_corr2_{1}_{2}.eps'.format(graph_path,
-                                                            graph_name,
-                                                            df_name))
-            plt.show()
-        except Exception as e:
-            if (verbose > 2):
-                print(e)
-
-
 def analyse_const_dir(const):
     list_cstes = []
     fini = False
@@ -3289,612 +3044,6 @@ def factor_scatter_matrix(df, factor, graph_name,
         plt.setp(plt.gca().get_legend().get_texts(), fontsize='10')
 
     return axarr, color_map
-
-
-def glob_scatter_cor(graph_path, glob_df, graph_name):
-    """
-    Makes correlation between columns (scatter_matrix) the color of the dots
-    indicates the parameter (angle, duration, constant synaptic value)
-    """
-    # ========================================================================
-    #      prepares the glob_df by creating and adding factors columns
-    # ========================================================================
-
-    # ---------------------------------------------------------
-    # recostruct list_levels_angdur from index.get_level_values.
-    # ---------------------------------------------------------
-    # This method is better than directly getting list from df.index.levels[0]
-    # that contains all lists of index levels even those that have not been
-    # selected but were present in the mother df.
-    colnames = list(glob_df.columns)
-    for idx_col, col_name in enumerate(colnames):
-        if len(col_name) > 17:
-            col_name = col_name[:15]
-            # print col_name
-            colnames[idx_col] = col_name
-    # print colnames
-    glob_df.columns = colnames
-    list_columns = glob_df.columns
-    list_levels_angdur = []
-    for angdur in glob_df.index.get_level_values(glob_df.index.names[0]):
-        if angdur not in list_levels_angdur:
-            list_levels_angdur.append(angdur)
-
-    # ---------------------------------------------------------
-    # reconstruct list_levels_const from index.get_level_values.
-    # ---------------------------------------------------------
-    list_levels_const = []
-    for const in glob_df.index.get_level_values(glob_df.index.names[1]):
-        if const not in list_levels_const:
-            list_levels_const.append(const)
-
-    list_labels_const = glob_df.index.labels[1]
-    glob_df.index
-
-    # ---------------------------------------------------------
-    #    adds 'angle" column to glob_df for factors in factor_scatter_matrix
-    # ---------------------------------------------------------
-    list_ang_indf = []
-    for angdur in list_levels_angdur:
-        angle = angdur[: angdur.find("_")]
-        print(angle, "-->", end=" ")
-        ang = angle[angdur.find("-")+1:]
-        print(ang)
-        list_ang_indf.append(int(ang))
-    glob_df.loc[:, 'angle'] = 40   # creates a new 'angle' column with value=40
-    for idx, ang in enumerate(list_ang_indf):
-        glob_df.loc[list_levels_angdur[idx], 'angle'] = ang
-
-    # ---------------------------------------------------------
-    #    adds 'duree" column to glob_df for factors in factor_scatter_matrix
-    # ---------------------------------------------------------
-    list_dur_indf = []
-    for angdur in list_levels_angdur:
-        duration = angdur[angdur.find("_"):]
-        print(duration, "-->", end=" ")
-        dur = duration[angdur.find("=")+2:]
-        dur = int(float(dur)*1000)
-        print(dur)
-        list_dur_indf.append(dur)
-    glob_df.loc[:, 'duree'] = 400   # creates a new 'dur' column with value=400
-    for idx, dur in enumerate(list_dur_indf):
-        glob_df.loc[list_levels_angdur[idx], 'duree'] = dur
-
-    # ---------------------------------------------------------
-    #    adds 'const" column to glob_df for factors in factor_scatter_matrix
-    # ---------------------------------------------------------
-    dic_const_index = {}
-    list_dic_const = []
-    list_const_index = []
-    # for const in list_levels_const:
-    for const in glob_df.index.levels[1]:
-        list_cstes = analyse_const_dir(const)
-        dic_const = {}
-        for cst in list_cstes:
-            parnam = cst[: cst.find("=")]
-            value = cst[cst.find("=")+1:]
-            dic_const[parnam] = value
-        list_dic_const.append(dic_const)
-    for par in (list(dic_const.keys())):
-        lst_val = []
-        for dic in(list_dic_const):
-            lst_val.append(float(dic[par]))
-        dic_const_index[par] = lst_val
-    # Now choose one of the constants ... for example "7" to get list of values
-    # list_const_index = dic_const_index['7']
-    # Or look for the list that contains different values
-    for key in list(dic_const_index.keys()):
-        minval = min(dic_const_index[key])
-        maxval = max(dic_const_index[key])
-        if minval != maxval:
-            list_const_index = dic_const_index[key]
-#   TODO    Part not Finished...
-    if list_const_index == []:  # If single constant value chosen...
-        list_const_index = dic_const_index['7']
-    for cst_idx, cst in enumerate(list_const_index):
-        print(list(glob_df.index.levels[1])[cst_idx], "-->", cst)
-#   TODO    Part not Finished...
-    # now, use the list_labels_const (111222333...) to creat a list of
-    # corresponding values
-    list_const_values = []
-    for i in list_labels_const:
-        list_const_values.append(list_const_index[i])
-    glob_df.loc[:, 'const'] = list_const_values
-
-    # ========================================================================
-    #               plot of individual dataframes correlations
-    # ========================================================================
-    factor = 'angle'
-    select_col = list(list_columns)
-    select_col.append(factor)
-    palette = sns.color_palette("Set1")
-    # df = copy.deepcopy(glob_df)
-    df = copy.deepcopy(glob_df[select_col])
-    axarr, color_map = factor_scatter_matrix(df,
-                                             factor,
-                                             graph_name,
-                                             plt_factor=False,
-                                             palette=palette)
-    plt.savefig(r'{0}\fig_corr3_{1}_ang.eps'.format(graph_path, graph_name))
-    plt.show()
-    df = copy.deepcopy(glob_df[select_col])
-    factor_glob_cor_allconst(df, factor, graph_path, graph_name)
-    factor_glob_cor_by_const(df, factor, graph_path, graph_name)
-
-    factor = 'duree'
-    select_col = list(list_columns)
-    select_col.append(factor)
-    palette = sns.color_palette("Dark2")
-    # df = copy.deepcopy(glob_df)
-    df = copy.deepcopy(glob_df[select_col])
-    axarr, color_map = factor_scatter_matrix(df,
-                                             factor,
-                                             graph_name,
-                                             plt_factor=False,
-                                             palette=palette)
-    plt.savefig(r'{0}\fig_corr3_{1}_dur.eps'.format(graph_path, graph_name))
-    df = copy.deepcopy(glob_df[select_col])
-    factor_glob_cor_allconst(df, factor, graph_path, graph_name)
-    factor_glob_cor_by_const(df, factor, graph_path, graph_name)
-
-    factor = 'const'
-    select_col = list(list_columns)
-    select_col.append(factor)
-    palette = sns.color_palette("tab10")
-    # df = copy.deepcopy(glob_df)
-    df = copy.deepcopy(glob_df[select_col])
-    axarr, color_map = factor_scatter_matrix(df,
-                                             factor,
-                                             graph_name,
-                                             plt_factor=False,
-                                             palette=palette)
-    plt.savefig(r'{0}\fig_corr3_{1}_const.eps'.format(graph_path, graph_name))
-    plt.show()
-
-
-def factor_glob_cor_allconst(df, factor, graph_path, graph_name):
-    """
-    Makes correlation between all parameters and a given condition of movement:
-    (angle, duration, constant synaptic value), with the other conditions fixed
-    """
-    palette = sns.color_palette("tab10")
-    if isinstance(factor, str):
-        factor_col = df.loc[:, factor]      # extract column
-        min_factor = min(factor_col)
-        max_factor = max(factor_col)
-    # ---------------------------------------------------------
-    # recostruct list_levels_angdur from index.get_level_values.
-    # ---------------------------------------------------------
-    # This method is better than directly getting list from df.index.levels[0]
-    # that contains all lists of index levels even those that have not been
-    # selected but were present in the mother df.
-    colnames = list(df.columns)
-    for idx_col, col_name in enumerate(colnames):
-        if len(col_name) > 17:
-            col_name = col_name[:15]
-            # print col_name
-            colnames[idx_col] = col_name
-    # print colnames
-    df.columns = colnames
-    list_columns = df.columns
-    list_levels_angdur = []
-    for angdur in df.index.get_level_values(df.index.names[0]):
-        if angdur not in list_levels_angdur:
-            list_levels_angdur.append(angdur)
-
-    # ---------------------------------------------------------
-    # reconstruct list_levels_const from index.get_level_values.
-    # ---------------------------------------------------------
-    list_levels_const = []
-    for const in df.index.get_level_values(df.index.names[1]):
-        if const not in list_levels_const:
-            list_levels_const.append(const)
-
-    # ---------- get the list of onstant values ---------------
-    dic_const_index = {}
-    list_dic_const = []
-    list_const_index = []
-    # for const in list_levels_const:
-    for const in df.index.levels[1]:
-        list_cstes = analyse_const_dir(const)
-        dic_const = {}
-        for cst in list_cstes:
-            parnam = cst[: cst.find("=")]
-            value = cst[cst.find("=")+1:]
-            dic_const[parnam] = value
-        list_dic_const.append(dic_const)
-    for par in (list(dic_const.keys())):
-        lst_val = []
-        for dic in(list_dic_const):
-            lst_val.append(float(dic[par]))
-        dic_const_index[par] = lst_val
-    # Now choose one of the constants ... for example "7" to get list of values
-    # list_const_index = dic_const_index['7']
-    # Or look for the list that contains different values
-    for key in list(dic_const_index.keys()):
-        minval = min(dic_const_index[key])
-        maxval = max(dic_const_index[key])
-        if minval != maxval:
-            list_const_index = dic_const_index[key]
-#   TODO    Part not Finished...
-    if list_const_index == []:  # If single constant value chosen...
-        list_const_index = dic_const_index['7']
-
-    """
-    dic_const_label = {}
-    for cst_idx, cst in enumerate(list_const_index):
-        dic_const_label[list_levels_const[cst_idx]] = cst
-        print list(df.index.levels[1])[cst_idx], "-->", cst
-    """
-
-    # classes = list(set(list_const_index))
-    classes = list_const_index
-    color_map = dict(list(zip(classes, palette)))
-    nbcolors = len(classes)
-    colors = []
-    for cl_idx, cl in enumerate(classes):
-        print(cl, end=" ")
-        colors.append(palette[cl_idx])
-        print(palette[cl_idx])
-
-    df.index
-    (mvt_by_angle, angles, durees) = get_angle_dur(list_levels_angdur)
-    nbcol = 4
-    nbrow = (len(list_columns) - 2) / nbcol + 1
-
-    list_g = []
-    fig, ax = plt.subplots(nrows=nbrow, ncols=nbcol,
-                           figsize=(12, 3*nbrow),
-                           dpi=90)
-
-    for const_idx, const in enumerate(list_levels_const):
-        qry = '(Synapses == "{}")'.format(const)
-        # print qry
-        tmpdf = df.query(qry)
-        # print tmpdf
-        # if nbrow*nbcol < len(list_columns):
-        #     nbrow += 1
-
-        for colnam_idx, col_nam in enumerate(list_columns):
-            col = colnam_idx % nbcol
-            row = int(colnam_idx/nbcol)
-            titre = "{0}".format(col_nam)
-            # print row, col
-            if col_nam != factor:
-                ax[row, col].set_title(titre, fontsize=10)
-                df_for_cor = tmpdf[[col_nam, factor]]
-                # print df_for_cor
-                list_g.append(sns.regplot(x=factor, y=col_nam,
-                                          color=palette[const_idx],
-                                          data=df_for_cor, ax=ax[row, col]))
-                list_g[colnam_idx].set_ylabel('')
-                if row < nbrow-1:
-                    list_g[colnam_idx].set_xticks([])
-                    list_g[colnam_idx].set_xlabel('')
-        # row = nbrow-1
-        for col in range(nbcol):
-            ax[nbrow-1, col].set_xlabel(factor, fontsize=12)
-            ax[nbrow-1, col].set_xticks([min_factor, max_factor])
-
-    maintitre = "{}_par=f({})".format(os.path.split(graph_path)[-1], factor)
-    maintitre = maintitre + "\n" + "Fig_corr4_{}    {}".format(graph_name,
-                                                               "allconst")
-    plt.suptitle(maintitre, fontsize=12, y=1)
-
-    labels = copy.deepcopy(classes)
-    labels.sort(reverse=True)
-    handles = [plt.plot([], [], color=color_map[labels[i]], ls="", marker='.',
-                        markersize=15)[0] for i in range(nbcolors)]
-    plt.legend(handles, labels, loc=(1.02, 0), fontsize=12)
-    plt.savefig(r'{0}\fig_corr4_{1}=f({2})_{3}.eps'.format(graph_path,
-                                                           graph_name,
-                                                           factor,
-                                                           "allconst"))
-    plt.show()
-
-
-def factor_glob_cor_by_const(df, factor, graph_path, graph_name):
-    """
-    Makes correlation between all parameters and a given condition of movement:
-    (angle, duration, constant synaptic value), with the other conditions fixed
-    """
-    # ---------------------------------------------------------
-    # recostruct list_levels_angdur from index.get_level_values.
-    # ---------------------------------------------------------
-    # This method is better than directly getting list from df.index.levels[0]
-    # that contains all lists of index levels even those that have not been
-    # selected but were present in the mother df.
-    colnames = list(df.columns)
-    for idx_col, col_name in enumerate(colnames):
-        if len(col_name) > 17:
-            col_name = col_name[:15]
-            # print col_name
-            colnames[idx_col] = col_name
-    # print colnames
-    df.columns = colnames
-    list_columns = df.columns
-    list_levels_angdur = []
-    for angdur in df.index.get_level_values(df.index.names[0]):
-        if angdur not in list_levels_angdur:
-            list_levels_angdur.append(angdur)
-
-    # ---------------------------------------------------------
-    # reconstruct list_levels_const from index.get_level_values.
-    # ---------------------------------------------------------
-    list_levels_const = []
-    for const in df.index.get_level_values(df.index.names[1]):
-        if const not in list_levels_const:
-            list_levels_const.append(const)
-
-    df.index
-    (mvt_by_angle, angles, durees) = get_angle_dur(list_levels_angdur)
-    # for ang_idx, angle in enumerate(angles):
-    #     for dur_idx, dur in enumerate(mvt_by_angle[ang_idx]):
-
-    for const_idx, const in enumerate(list_levels_const):
-        qry = '(Synapses == "{}")'.format(const)
-        # print qry
-        tmpdf = df.query(qry)
-        # print tmpdf
-        nbcol = 4
-        nbrow = (len(list_columns) - 2) / nbcol + 1
-        # if nbrow*nbcol < len(list_columns):
-        #     nbrow += 1
-        list_g = []
-        fig, ax = plt.subplots(nrows=nbrow, ncols=nbcol,
-                               figsize=(12, 3*nbrow),
-                               dpi=90)
-        for colnam_idx, col_nam in enumerate(list_columns):
-            col = colnam_idx % nbcol
-            row = int(colnam_idx/nbcol)
-            titre = "{0}".format(col_nam)
-            # print row, col
-            if col_nam != factor:
-                ax[row, col].set_title(titre, fontsize=10)
-                df_for_cor = tmpdf[[col_nam, factor]]
-                # print df_for_cor
-                list_g.append(sns.regplot(x=factor, y=col_nam,
-                                          data=df_for_cor, ax=ax[row, col]))
-                list_g[colnam_idx].set_ylabel('')
-                if row < nbrow-1:
-                    list_g[colnam_idx].set_xticks([])
-                    list_g[colnam_idx].set_xlabel('')
-        row = nbrow-1
-        for col in range(nbcol):
-            ax[nbrow-1, col].set_xlabel(factor)
-        maintitre = "{}_par=f({})".format(os.path.split(graph_path)[-1],
-                                          factor)
-        maintitre = maintitre + "\n" + "Fig_corr4_{}    {}".format(graph_name,
-                                                                   const)
-        plt.suptitle(maintitre, fontsize=12, y=1)
-        plt.savefig(r'{0}\fig_corr4_{1}=f({2})_{3}.eps'.format(graph_path,
-                                                               graph_name,
-                                                               factor,
-                                                               const))
-    plt.show()
-
-
-#   TODO    Part not Finished...
-    """
-    glob_df.query('(AngleDur == "angles=0-40_mvtdur=0.400")')
-    glob_df.query('(Synapses == "const_6=0.010_7=0.010")')
-    glob_df.query('(Synapses == "const_6=0.010_7=0.010") &\
-                   (AngleDur == "angles=0-40_mvtdur=0.400")')
-    """
-
-
-def make_graph_par_var_cor(graph_path, list_VSCDParam,
-                           select_constVal_dir, select_angledur_dir,
-                           prevListConsts, prevListTrials,
-                           selectLst_const_trial, prevLstPltParams,
-                           select_var_names_plt):
-    """
-    Creates a dataframe (df_par) with all parameter names as column names
-    and a dataframe (df_var) with all variables (from data chart)
-    """
-    list_constVal = ['Time']
-    for const in prevListConsts:
-        lastConstPar = const
-        while lastConstPar.find("=") != -1:
-            lastConstPar = lastConstPar[lastConstPar.find("=")+1:]
-        # print(lastConstPar)
-        for idx, trial in enumerate(prevListTrials):
-            list_constVal.append("{0}-{1}".format(lastConstPar, idx+1))
-    # ========================================================================
-    #           Prepares the creation of df_par (one for each angle_dur)
-    # ========================================================================
-    list_df_par = []
-
-    df1_par = pd.read_csv(r'{0}\{1}.csv'.format(graph_path, "output_param"),
-                          delimiter='\t',
-                          index_col=0,
-                          header=[0, 1, 2])
-    parnames = list(df1_par.index)
-    for par in parnames:
-        maxi = max(df1_par.loc[par])
-        mini = min(df1_par.loc[par])
-        if maxi == mini:
-            df1_par = df1_par.drop([par])
-    parnames = list(df1_par.index)
-    for par in parnames:
-        if par not in prevLstPltParams:
-            print("{} was suppressed from the dataframe". format(par))
-            df1_par = df1_par.drop([par])
-    parnames = list(df1_par.index)
-    (mvt_by_angle, angles, durees) = get_angle_dur(select_angledur_dir)
-    list_const = []
-    for const_trial in selectLst_const_trial:
-        list_const.append(float(const_trial[:const_trial.find('-')]))
-    tab = np.zeros(len(selectLst_const_trial))
-    for idx, ang_dur in enumerate(select_angledur_dir):
-        list_df_par.append(pd.DataFrame({parnames[0]: tab}))
-    # ========================================================================
-    #           Prepares the creation of df_par (one for each angle_dur)
-    # ========================================================================
-    lst_df_var_Deb_moy = []
-    lst_df_var_MaxVal = []
-    lst_df_var_Fin_moy = []
-    for idx, ang_dur in enumerate(select_angledur_dir):
-        lst_df_var_Deb_moy.append(pd.DataFrame({select_var_names_plt[0]: tab}))
-        lst_df_var_MaxVal.append(pd.DataFrame({select_var_names_plt[0]: tab}))
-        lst_df_var_Fin_moy.append(pd.DataFrame({select_var_names_plt[0]: tab}))
-
-    idx_ang_dur = 0
-    # Draws and saves correlation graphs for each angle_duration contdition
-    for ang_idx, ang in enumerate(angles):
-        dic_VSCDparam = list_VSCDParam[ang_idx]
-        endPos1 = dic_VSCDparam["endPos1"]
-        endMvt2 = dic_VSCDparam["endMvt2"]
-        endPos2 = dic_VSCDparam["endPos2"]
-        angle_class = mvt_by_angle[ang_idx]
-        dfang = df1_par[angle_class]
-        for dur_idx, dur in enumerate(angle_class):
-            dfdur = dfang[dur]
-            dfconst = dfdur[select_constVal_dir]
-            dfconst.columns = selectLst_const_trial
-            # ===============================================================
-            #                         Creates list_df_par
-            # ===============================================================
-            for par_idx, par in enumerate(parnames):
-                list_parcol = []
-                for idx in range(len(dfconst.loc[par])):
-                    list_parcol.append(dfconst.loc[par][idx])
-                list_df_par[idx_ang_dur][par] = list_parcol
-
-            # ===============================================================
-            #                 Creates list_df_var_Deb, Max & Fin
-            # ===============================================================
-            output_path = os.path.join(graph_path, dur, "output")
-            df_var = []
-            select_df_var = []
-            for var_idx, var in enumerate(select_var_names_plt):
-                df_var.append(pd.read_csv(r'{0}\{1}.csv'.format(output_path,
-                                                                var),
-                                          delimiter='\t',
-                                          index_col='Time',
-                                          header=1,
-                                          names=list_constVal))
-                select_df_var.append(df_var[var_idx].
-                                     loc[:, selectLst_const_trial])
-                "Deb_steady part"
-                Deb = select_df_var[var_idx].loc[0.5:endPos1]
-                # Deb.describe()
-                Deb_moy = Deb.mean(axis=0)
-                "Max part"
-                MaxVal = select_df_var[var_idx].max(axis=0)
-                "Fin_steady part"
-                Fin = select_df_var[var_idx].loc[endMvt2:endPos2]
-                # Fin.describe()
-                Fin_moy = Fin.mean(axis=0)
-                list_Deb_moy = []
-                list_MaxVal = []
-                list_Fin_moy = []
-                for tr in selectLst_const_trial:
-                    list_Deb_moy.append(Deb_moy[tr])
-                    list_MaxVal.append(MaxVal[tr])
-                    list_Fin_moy.append(Fin_moy[tr])
-                lst_df_var_Deb_moy[idx_ang_dur][var] = list_Deb_moy
-                lst_df_var_MaxVal[idx_ang_dur][var] = list_MaxVal
-                lst_df_var_Fin_moy[idx_ang_dur][var] = list_Fin_moy
-            idx_ang_dur += 1
-
-    # ========================================================================
-    #           Prepares the creation glob_df with multiindex
-    # ========================================================================
-
-    # ------------------------------------------------------
-    #           Construct glob_df_var Deb, Max and Fin
-    # ------------------------------------------------------
-    indx = pd.MultiIndex.from_product([select_angledur_dir,
-                                       select_constVal_dir,
-                                       prevListTrials],
-                                      names=['AngleDur', 'Synapses', 'Trial'])
-    col = select_var_names_plt
-    glob_df_Debvar = pd.DataFrame(copy.deepcopy(lst_df_var_Deb_moy[0]))
-    idx = 0
-    for ang_idx, ang in enumerate(angles):
-        angle_class = mvt_by_angle[ang_idx]
-        for dur_idx, dur in enumerate(angle_class):
-            if idx > 0:
-                glob_df_Debvar = glob_df_Debvar.append(lst_df_var_Deb_moy[idx])
-            idx += 1
-    glob_df_Maxvar = pd.DataFrame(copy.deepcopy(lst_df_var_MaxVal[0]))
-    idx = 0
-    for ang_idx, ang in enumerate(angles):
-        angle_class = mvt_by_angle[ang_idx]
-        for dur_idx, dur in enumerate(angle_class):
-            if idx > 0:
-                glob_df_Maxvar = glob_df_Maxvar.append(lst_df_var_MaxVal[idx])
-            idx += 1
-    glob_df_Finvar = pd.DataFrame(copy.deepcopy(lst_df_var_Fin_moy[0]))
-    idx = 0
-    for ang_idx, ang in enumerate(angles):
-        angle_class = mvt_by_angle[ang_idx]
-        for dur_idx, dur in enumerate(angle_class):
-            if idx > 0:
-                glob_df_Finvar = glob_df_Finvar.append(lst_df_var_Fin_moy[idx])
-            idx += 1
-    glob_df_Debvar = glob_df_Debvar.set_index(indx, col)
-    glob_df_Maxvar = glob_df_Maxvar.set_index(indx, col)
-    glob_df_Finvar = glob_df_Finvar.set_index(indx, col)
-
-    # ------------------------------------------------------
-    #           Construct glob_df_par
-    # ------------------------------------------------------
-    glob_df1 = df1_par.transpose()
-    glob_df1.index
-
-    indexer = [slice(None)]*len(glob_df1.index.names)
-    indexer[glob_df1.index.names.index('AngleDur')] = select_angledur_dir
-    indexer[glob_df1.index.names.index('Synapses')] = select_constVal_dir
-    indexer[glob_df1.index.names.index('Trial')] = prevListTrials
-    selection = glob_df1.loc[tuple(indexer), :]
-
-    glob_df_par = selection
-
-    # ========================================================================
-    #                               makes graphs
-    # ========================================================================
-    graph_name = "par_glob"
-    glob_df = copy.deepcopy(glob_df_par)
-    glob_scatter_cor(graph_path, glob_df, graph_name)
-
-    graph_name = "var_glob_Deb"
-    glob_df = copy.deepcopy(glob_df_Debvar)
-    glob_scatter_cor(graph_path, glob_df, graph_name)
-
-    graph_name = "var_glob_Max"
-    glob_df = copy.deepcopy(glob_df_Maxvar)
-    glob_scatter_cor(graph_path, glob_df, graph_name)
-
-    graph_name = "var_glob_Fin"
-    glob_df = copy.deepcopy(glob_df_Finvar)
-    glob_scatter_cor(graph_path, glob_df, graph_name)
-
-    # ============================================================
-    list_df = list_df_par
-    list_df_names = select_angledur_dir
-    graph_name = "par"
-    heatmap_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-    scatter_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-
-    list_df = lst_df_var_Deb_moy
-    graph_name = "var_Deb"
-    list_df_names = select_angledur_dir
-    heatmap_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-    scatter_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-
-    list_df = lst_df_var_MaxVal
-    graph_name = "var_MaxVal"
-    list_df_names = select_angledur_dir
-    heatmap_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-    scatter_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-
-    list_df = lst_df_var_Fin_moy
-    graph_name = "var_Fin"
-    list_df_names = select_angledur_dir
-    heatmap_cor_matrix(graph_path, list_df, list_df_names, graph_name)
-    scatter_cor_matrix(graph_path, list_df, list_df_names, graph_name)
 
 
 # ======================================================================
@@ -5746,7 +4895,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.set_bhv_limits_btn.clicked.connect(self.set_bhv_limits)
         self.run_selected_btn = QtWidgets.QPushButton(
             'Run and Build charts of selected bhv')
-        self.run_selected_btn.clicked.connect(self.chartgraph_selected_bhv)        
+        self.run_selected_btn.clicked.connect(self.chartgraph_selected_bhv)
         self.make_graphs_btn = QtWidgets.QPushButton("make graph'series")
         self.make_graphs_btn.clicked.connect(self.make_graphs_series)
         self.make_single_graph_btn = QtWidgets.QPushButton('make single graph')
@@ -5802,10 +4951,10 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         layout.addWidget(self.set_bhv_limits_btn, 2, 0)     # 3rd row-left
         layout.addWidget(self.run_selected_btn, 3, 0)       # 4th row-left
         # layout.addWidget(self.choose_var_btn, 3, 0)
-        layout.addWidget(self.make_graphs_btn, 4, 0)
-        layout.addWidget(self.make_single_graph_btn, 5, 0)
-        layout.addWidget(self.make_matrix_graph_btn, 6, 0)
-        layout.addWidget(self.make_3d_graph_btn, 7, 0)
+        layout.addWidget(self.make_graphs_btn, 5, 0)
+        layout.addWidget(self.make_single_graph_btn, 6, 0)
+        layout.addWidget(self.make_matrix_graph_btn, 7, 0)
+        layout.addWidget(self.make_3d_graph_btn, 8, 0)
         """
         layout.addLayout(buttonLayout1, 8, 0, 1, 1)
         """
@@ -5837,6 +4986,11 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         xmax = self.GUI_Gr_obj.xmax
         ymin = self.GUI_Gr_obj.ymin
         ymax = self.GUI_Gr_obj.ymax
+
+        #xmin = 0
+        #xmax = 120
+        #ymin = 0
+        #ymax = 450
 
         bhv_names = self.GUI_Gr_obj.bhv_names
         # print(self.GUI_Gr_obj)
@@ -5881,8 +5035,13 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selected_two = []
         self.selected_three = []
         self.selectedCols = []
+        
         if self.df is not None:
-            self.set_bhv_limits()
+            # self.set_bhv_limits()
+            self.df_glob = self.df
+            self.index = list(self.df["rg_in_whole"])
+            # self.GUI_Gr_obj.df_glob = self.df_glob
+
 
     """
     def btnstate(self, b):
@@ -6004,17 +5163,28 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         res = self.GUI_Gr_obj.extract_new_df(df_par, df_bhv,
                                              self.GUI_Gr_obj.bhv_set)
         df_glob, ss_titre = res[0], res[1]
+        index = list(df_glob.index)
         if self.df is not None:
-            df_glob = self.df
-            index = list(self.df["rg_in_whole"])
+            df_glob = self.df.loc[index]
+            # index = list(self.df["rg_in_whole"])
         else:
             index = df_glob.index
-
+        """
         self.behav_col = self.GUI_Gr_obj.behav_col
         bhv_xmin = df_bhv[df_bhv.columns[self.behav_col[0]]].min()/self.scale_x
         bhv_xmax = df_bhv[df_bhv.columns[self.behav_col[0]]].max()/self.scale_x
         bhv_ymin = df_bhv[df_bhv.columns[self.behav_col[1]]].min()/self.scale_y
         bhv_ymax = df_bhv[df_bhv.columns[self.behav_col[1]]].max()/self.scale_y
+        """
+        xmin = float(self.GUI_Gr_obj.bhv_set['endangle.min'])
+        xmax = float(self.GUI_Gr_obj.bhv_set['endangle.max'])
+        ymin = float(self.GUI_Gr_obj.bhv_set['max_speed.min'])
+        ymax = float(self.GUI_Gr_obj.bhv_set['max_speed.max'])
+
+        bhv_xmin = xmin / self.scale_x
+        bhv_xmax = xmax / self.scale_x
+        bhv_ymin = ymin / self.scale_y
+        bhv_ymax = ymax / self.scale_y
 
         self.GUI_Gr_obj.plot_map_behav(df_bhv.loc[index],
                                        xmin=bhv_xmin, xmax=bhv_xmax,
@@ -6025,11 +5195,18 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.mafen.source_df_bhvremain = df_bhv.loc[index]
         self.GUI_Gr_obj.mafen.source_df_parremain = df_par.loc[index]
         self.GUI_Gr_obj.mafen.bhvPlot.plot_item.clearPlots()
+        """
         self.GUI_Gr_obj.plot_df_bhv(df_bhv.loc[index],
                                     xmin=bhv_xmin*self.scale_x,
                                     xmax=bhv_xmax*self.scale_x,
                                     ymin=bhv_ymin*self.scale_y,
                                     ymax=bhv_ymax*self.scale_y)
+        """
+        
+        self.GUI_Gr_obj.plot_df_bhv(df_bhv.loc[index],
+                                    xmin=xmin, xmax=xmax,
+                                    ymin=ymin, ymax=ymax)
+
         self.GUI_Gr_obj.mafen.clearParam()
         self.GUI_Gr_obj.mafen.param_in_blue(df_par.loc[index])
         return df_glob, ss_titre
@@ -6315,6 +5492,8 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.factor = self.selected_factor[0]
         self.GUI_Gr_obj.selected_col = self.selectedCols
 
+
+
     def choose_two_params(self):
         """
         Choose X and Y variables and variable for color to plot a scatterplot
@@ -6527,15 +5706,12 @@ class Ui_GrChart(object):
             QtWidgets.QPushButton("&Make/Analyze (par+bhv) dataframe")
         self.save_pardf_bhvdf_btn = \
             QtWidgets.QPushButton("&save (par+bhv) dataframe to csv")
-        self.browse_folder_Button = \
-            QtWidgets.QPushButton("&ChooseSavedSeries & build CSV")
-        self.analyzeCSV_Button = QtWidgets.QPushButton("&AnalyzeCSV")
         self.gr_chart_tcourse_btn = \
             QtWidgets.QPushButton("&Make graph (chart, timeCourse)")
         self.gr_chart_btn = \
             QtWidgets.QPushButton("&Make graphs (chartDir)")
-        self.analyze_neur_bhv_btn = \
-            QtWidgets.QPushButton("&Analyze neurons activity vs bhv")
+        self.analyze_bhv_neur_par_chart_btn = \
+            QtWidgets.QPushButton("&Analyze neurons_activity/bhv from charts")
         self.analyze_triphasic_btn = \
             QtWidgets.QPushButton("&Analyze triphasic")
         self.radar_Button = QtWidgets.QPushButton("&Make Radar from .csv")
@@ -6549,11 +5725,9 @@ class Ui_GrChart(object):
         buttonLayout1.addWidget(self.make_pardf_bhvdf_btn)
         buttonLayout1.addWidget(self.save_pardf_bhvdf_btn)
         buttonLayout1.addWidget(self.radar_Button)
-        buttonLayout1.addWidget(self.browse_folder_Button)
-        buttonLayout1.addWidget(self.analyzeCSV_Button)
         buttonLayout1.addWidget(self.gr_chart_tcourse_btn)
         buttonLayout1.addWidget(self.gr_chart_btn)
-        buttonLayout1.addWidget(self.analyze_neur_bhv_btn)
+        buttonLayout1.addWidget(self.analyze_bhv_neur_par_chart_btn)
         buttonLayout1.addWidget(self.analyze_triphasic_btn)
         buttonLayout1.addWidget(self.GEPgraphMetric_button)
 
@@ -6659,11 +5833,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.select_3_col = []
         self.make_pardf_bhvdf_btn.clicked.connect(self.build_analyze_bhvpar_df)
         self.save_pardf_bhvdf_btn.clicked.connect(self.save_bhvpar_df_to_csv)
-        self.browse_folder_Button.clicked.connect(self.browse_folder)
-        self.analyzeCSV_Button.clicked.connect(self.analyzeCSVPandas)
         self.gr_chart_tcourse_btn.clicked.connect(self.makegr_chart_tcourse)
         self.gr_chart_btn.clicked.connect(self.make_all_chart)
-        self.analyze_neur_bhv_btn.clicked.connect(self.analyze_neur_bhv)
+        self.analyze_bhv_neur_par_chart_btn.clicked.connect(
+            self.analyze_bhv_neur_par_chart)
         self.analyze_triphasic_btn.clicked.connect(self.analyze_triphasic)
         self.radar_Button.clicked.connect(self.make_radar_from_csv)
         self.GEPgraphMetric_button.clicked.connect(self.graphMetrics_GEP)
@@ -6822,6 +5995,63 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         if ret == 7:
             self.build_newdf()
         return ret
+    
+    
+    def build_bhv_par_df(self, idx, gepdataFold, parName, bhvName,
+                         concatpairs, concatbehavs, lst_lenTab,
+                         lst_df_parremain, lst_df_bhvremain):
+
+        tab_par = readTablo(gepdataFold, parName)
+        tab_par = np.array(tab_par)
+        tab_bhv = readTablo(gepdataFold, bhvName)
+        tab_bhv = np.array(tab_bhv)
+        lst_lenTab. append(len(tab_par))
+        print(gepdataFold, end=" ")
+        if tab_par[0][-1] != 0.0:   # last column must be 0, 1, 2...., n
+            # nbparfromtab = len(tab[0]) - 2
+            pairs = np.array(tab_par[:, :])
+        else:
+            # nbparfromtab = len(tab[0]) - 2 - 1
+            pairs = np.array(tab_par[:, 0:-1])
+            behavs = np.array(tab_bhv[:, 0:-1])
+            print("nbcol in pairs : {}".format(len(pairs[0])), end=" ")
+            print("nbcol in behavs : {}".format(len(behavs[0])))
+            # print(concatpairs)
+            # print(pairs[0])
+            if concatpairs[0][0] != 0:
+                concatpairs = np.concatenate((concatpairs, pairs))
+                concatbehavs = np.concatenate((concatbehavs, behavs))
+            else:
+                concatpairs = pairs
+                concatbehavs =behavs
+            start = 0
+            end = len(tab_bhv)
+            # =============================================================
+            res = self.selctValidBehav(behavs, pairs, start, end,
+                                       stangl=0, st_err=1,
+                                       minampl=10,
+                                       max_coactpenalty=0.01)
+            (df_bhvOK, df_parOK) = res
+            # creates a new column with the idx value og the origine df
+            origine = np.ones(len(df_bhvOK))*idx
+            df_bhvOK.loc[:, 'origine'] = origine
+            df_parOK.loc[:, 'origine'] = origine
+            # =============================================================
+            default = True
+            mseThr = 1
+            lst_df_bhvremain.append(copy.deepcopy(df_bhvOK))
+            lst_df_parremain.append(copy.deepcopy(df_parOK))
+            varmse_OK = lst_df_bhvremain[idx]['varmse'] <= mseThr
+            lst_df_bhvremain[idx] = lst_df_bhvremain[idx][varmse_OK]
+            lst_df_parremain[idx] = lst_df_parremain[idx][varmse_OK]
+            if default is True:
+                bhvframes = [self.df_bhvremain, lst_df_bhvremain[idx]]
+                self.df_bhvremain = pd.concat(bhvframes)
+                parframes = [self.df_parremain, lst_df_parremain[idx]]
+                self.df_parremain = pd.concat(parframes)
+                self.dic_df_origine[idx] = gepdataFold
+        return (concatpairs, concatbehavs,
+                lst_df_parremain, lst_df_bhvremain, lst_lenTab)
 
     def build_newdf(self):
         """
@@ -6837,65 +6067,21 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         The same is made with GEPdata00.txt for the  df_parremain[idx] and a
         global dataframe self.df_parremain.
         """
+        self.explore_subfolders()
+        nb_folders = len(self.listGEPFolders)
+        self.read_GEPdata_infos()
+        self.construct_df_par_bhv_remains()
 
-        parName = "GEPdata00.txt"
-        bhvName = "GEPdata00bhv.txt"
 
-        def build_bhv_par_df(idx, gepdataFold, parName, bhvName,
-                             concatpairs, concatbehavs, lst_lenTab,
-                             lst_df_parremain, lst_df_bhvremain):
-
-            tab_par = readTablo(gepdataFold, parName)
-            tab_par = np.array(tab_par)
-            tab_bhv = readTablo(gepdataFold, bhvName)
-            tab_bhv = np.array(tab_bhv)
-            lst_lenTab. append(len(tab_par))
-            print(gepdataFold, end=" ")
-            if tab_par[0][-1] != 0.0:   # last column must be 0, 1, 2...., n
-                # nbparfromtab = len(tab[0]) - 2
-                pairs = np.array(tab_par[:, :])
-            else:
-                # nbparfromtab = len(tab[0]) - 2 - 1
-                pairs = np.array(tab_par[:, 0:-1])
-                behavs = np.array(tab_bhv[:, 0:-1])
-                print("nbcol in pairs : {}".format(len(pairs[0])), end=" ")
-                print("nbcol in behavs : {}".format(len(behavs[0])))
-                # print(concatpairs)
-                # print(pairs[0])
-                if concatpairs[0][0] != 0:
-                    concatpairs = np.concatenate((concatpairs, pairs))
-                    concatbehavs = np.concatenate((concatbehavs, behavs))
-                else:
-                    concatpairs = pairs
-                    concatbehavs =behavs
-                start = 0
-                end = len(tab_bhv)
-                # =============================================================
-                res = self.selctValidBehav(behavs, pairs, start, end,
-                                           stangl=0, st_err=1,
-                                           minampl=10,
-                                           max_coactpenalty=0.01)
-                (df_bhvOK, df_parOK) = res
-                # creates a new column with the idx value og the origine df
-                origine = np.ones(len(df_bhvOK))*idx
-                df_bhvOK.loc[:, 'origine'] = origine
-                df_parOK.loc[:, 'origine'] = origine
-                # =============================================================
-                default = True
-                mseThr = 1
-                lst_df_bhvremain.append(copy.deepcopy(df_bhvOK))
-                lst_df_parremain.append(copy.deepcopy(df_parOK))
-                varmse_OK = lst_df_bhvremain[idx]['varmse'] <= mseThr
-                lst_df_bhvremain[idx] = lst_df_bhvremain[idx][varmse_OK]
-                lst_df_parremain[idx] = lst_df_parremain[idx][varmse_OK]
-                if default is True:
-                    bhvframes = [self.df_bhvremain, lst_df_bhvremain[idx]]
-                    self.df_bhvremain = pd.concat(bhvframes)
-                    parframes = [self.df_parremain, lst_df_parremain[idx]]
-                    self.df_parremain = pd.concat(parframes)
-                    self.dic_df_origine[idx] = gepdataFold
-            return (concatpairs, concatbehavs,
-                    lst_df_parremain, lst_df_bhvremain, lst_lenTab)
+    def explore_subfolders(self):
+        """
+        From a selected directory, reads all subdirectories and allows to
+        select the ones to be included in the process
+        Actualize
+            self.one_expe = one_expe
+            self.directory = directory
+            self.listOfSearchedDir = listOfSearchedDir 
+        """
 
         self.original_limits = None
         one_expe = False    # indicates if only one experiment is analyzed
@@ -6962,14 +6148,21 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 self.nbExpe = len(self.listGEPFolders)
                 print("Number of experiments in graph :", self.nbExpe)
         # self.listGEPFolders.sort()  # do not work (duplicate folders ???)
-        nb_folders = len(self.listGEPFolders)
+        self.one_expe = one_expe
+        self.directory = directory
+        self.listOfSearchedDir = listOfSearchedDir
+        
+        
+    def read_GEPdata_infos(self):
+        """
+        Finds all "GEPdata" folders in subdirectories (whatever the level).
+        Takes GEPdata00bhv.txt file present in each "GEPdata" folder only
+        if nb of columns == 10.
+        Takes only data with a varmse < 1.
+        """
+        one_expe = self.one_expe
         # print self.listGEPFolders
-        lst_df_bhvremain = []
-        lst_df_parremain = []
         self.listFoldersNbBhv7 = []
-        self.df_bhvremain = None
-        self.df_parremain = None
-        self.dic_df_origine = {}
 
         # =========== Take bhv only if nb of columns == 10 ============
         if one_expe:
@@ -6992,7 +6185,6 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                             # print gepdataFold
                     else:    # empty table
                         self.listFoldersNbBhv7.append(self.listGEPFolders[0])
-
         if not one_expe:
             for idx, gepdataFold in enumerate(self.listGEPFolders):
                 tab_bhv = readTablo(gepdataFold, "GEPdata00bhv.txt")
@@ -7008,6 +6200,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                     self.listFoldersNbBhv7.append(gepdataFold)    # empty table
                 if idx % 10 == 0:
                     print("*", end=" ")
+        self.tab_bhv = tab_bhv
         print()
         nbpbs = len(self.listFoldersNbBhv7)
         print(nbpbs)
@@ -7027,12 +6220,33 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         #    print("######### No data to process #########")
         #    return
 
+
+
+    def construct_df_par_bhv_remains(self):
+        """
+        Dataframes are appended in a list of dataframes (df_bhvremain[idx]). A
+        global dataframe is built with a new last column indicating the origin
+        (integers) of the appended dataframe (self.df_bhvremain).
+        The same is made with GEPdata00.txt for the  df_parremain[idx] and a
+        global dataframe self.df_parremain.
+        self.ensembleRunDir is the folder from which the sub-folders selection
+        was made
+        """
+        self.df_bhvremain = None
+        self.df_parremain = None
+        self.dic_df_origine = {}
+
+        directory = self.directory
+        one_expe = self.one_expe
+        # listOfSearchedDir = self.listOfSearchedDir
+        tab_bhv = self.tab_bhv
+        
         # if self.optSet is None:
         getInfoAsim = True
         if one_expe:
             if directory == self.singleDirectory:
                 getInfoAsim = False
-
+        
         gepdataFold = self.listGEPFolders[0]
         animatsimdir = os.path.split(gepdataFold)[0]
         self.animatsimdir = animatsimdir
@@ -7041,29 +6255,35 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.optSet, model = getOptSetFromAsim(self, animatsimdir)
             self.aprojFicName = os.path.split(model.aprojFile)[-1]
             self.singleDirectory = directory    # to avoid reload asim next...
-
         # ============ Build the dataframes
+        lst_df_bhvremain = []
+        lst_df_parremain = []
+        parName = "GEPdata00.txt"
+        bhvName = "GEPdata00bhv.txt"
+
         concatpairs = [np.zeros(len(self.optSet.x0) + 2)]
         concatbehavs = [np.zeros(10)]
 
         # =====================================================================
+        nb_folders = len(self.listGEPFolders)
         if not one_expe:
             print()
             text = " # PLEASE WAIT! PROCESSING {} folders ... "
             print(text.format(nb_folders))
             parName = "GEPdata00.txt"
             bhvName = "GEPdata00bhv.txt"
-            lst_lenTab = [len(tab_bhv)]
+            # lst_lenTab = [len(tab_bhv)]
             lst_lenTab = []
             for idx, gepdataFold in enumerate(self.listGEPFolders):
-                res = build_bhv_par_df(idx, gepdataFold, parName, bhvName,
-                                       concatpairs, concatbehavs, lst_lenTab,
-                                       lst_df_parremain, lst_df_bhvremain)
+                res = self.build_bhv_par_df(idx, gepdataFold, parName, bhvName,
+                                            concatpairs, concatbehavs,
+                                            lst_lenTab,
+                                            lst_df_parremain, lst_df_bhvremain)
                 (concatpairs, concatbehavs,
                  lst_df_parremain, lst_df_bhvremain, lst_lenTab) = res
             listsubdir = os.listdir(self.ensembleRunDir)
             ix = 0
-            for index, sdir in enumerate(listsubdir):
+            for idx, sdir in enumerate(listsubdir):
                 # print(sdir, end=" ")
                 if sdir[:6] == "mltple":
                     if os.path.isdir(os.path.join(self.ensembleRunDir,
@@ -7104,13 +6324,13 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                     with open(jsondicfile_name, 'w+') as f:
                         # this would place the entire output on one line
                         json.dump(self.dic_df_origine, f, indent=4)
-
                 else:
                     self.graph_path = folderName
             saveListToDir(self.prevListFolders,
                           "listFolders.txt", self.graph_path)
 
         else:   # only one_expe
+            listOfSearchedDir = [self.listGEPFolders[0]]
             lst_lenTab = [len(tab_bhv)]
             onlyfiles = [f for f in listdir(listOfSearchedDir[0])
                          if isfile(join(listOfSearchedDir[0], f))
@@ -7137,11 +6357,16 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             for idx, gepdataFile in enumerate(self.prevListGEPFiles):
                 parName = gepdataFile[:-4] + ".txt"
                 bhvName = gepdataFile[:-4] + "bhv.txt"
-                res = build_bhv_par_df(idx, gepdataFold, parName, bhvName,
-                                       concatpairs, concatbehavs, lst_lenTab,
-                                       lst_df_parremain, lst_df_bhvremain)
+                res = self.build_bhv_par_df(idx, gepdataFold, parName, bhvName,
+                                            concatpairs, concatbehavs,
+                                            lst_lenTab,
+                                            lst_df_parremain, lst_df_bhvremain)
                 (concatpairs, concatbehavs,
                  lst_df_parremain, lst_df_bhvremain, lst_lenTab) = res
+
+        self.lst_df_parremain = lst_df_parremain
+        self.lst_df_bhvremain = lst_df_bhvremain
+        self.lst_lenTab = lst_lenTab
         # =====================================================================
         """
         self = MyWin
@@ -7171,8 +6396,6 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.lst_valid = lst_valid
                 
         # ========  recreates the index of the global df   =========
-        #self.df_bhvremain.index = np.arange(len(self.df_bhvremain))
-        #self.df_parremain.index = np.arange(len(self.df_bhvremain))
         self.df_bhvremain.index = self.lst_valid
         self.df_parremain.index = self.lst_valid
         self.df_bhvremain = self.df_bhvremain.astype({"origine": int})
@@ -7245,8 +6468,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             """
         else:
             print("NO VALID DATA TO ANALYZE")
-        # self.makes_bhvpar_windows(df_bhvremain, df_parremain,
-        #                        bhv_xmin, bhv_xmax, bhv_ymin, bhv_ymax)
+
 
     def auto_par_bhv(self, win, animatsimdir):
         """
@@ -7888,6 +7110,15 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         plt.savefig(r'{0}/{1} {2}.pdf'.format(graph_path, tit, sstit),
                     bbox_inches='tight')
         """
+        if two_selected_var == ['ampl', 'max_speed'] \
+            or two_selected_var == ['endangle', 'max_speed']:
+            xmin = float(self.bhv_set['endangle.min']) #/self.scale_x
+            xmax = float(self.bhv_set['endangle.max']) #/self.scale_x
+            ymin = float(self.bhv_set['max_speed.min']) #/self.scale_y
+            ymax = float(self.bhv_set['max_speed.max']) #/self.scale_y
+            
+            plt.xlim(xmin, xmax)
+            plt.ylim(ymin, ymax)
         save_eps_pdf(graph_path, tit, sstit)
         plt.show()
 
@@ -8219,454 +7450,6 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                              ficname=ficname)
         # self.visu_3d.apply_rainbow_colors(color)
 
-    def browse_folder(self):
-        """
-        doc string
-        """
-        self.model_dir = QtWidgets.QFileDialog.\
-            getExistingDirectory(self,
-                                 "Pick a folder",
-                                 self.rootdir)
-        self.rootdir = os.path.split(self.model_dir)[0]
-        self.listAngle = []
-        self.listConst = []
-        self.listTrial = []
-        print(self.model_dir)
-        for angle in os.listdir(self.model_dir):
-            if os.path.isdir(os.path.join(self.model_dir, angle)):
-                print(angle)
-                if angle not in self.listAngle:
-                    self.listAngle.append(angle)
-                anglePath = os.path.join(self.model_dir, angle)
-                for const in os.listdir(anglePath):
-                    if os.path.isdir(os.path.join(anglePath, const)):
-                        if const != "output":
-                            print("\t" + const)
-                            if const not in self.listConst:
-                                self.listConst.append(const)
-                            constPath = os.path.join(anglePath, const)
-                            for trial in os.listdir(constPath):
-                                if os.path.isdir(os.path.join(constPath,
-                                                              trial)):
-                                    print("\t\t" + trial)
-                                    if trial not in self.listTrial:
-                                        self.listTrial.append(trial)
-        self.listAngle.sort()
-        self.listConst.sort()
-        self.listTrial.sort()
-        # Select the angle directories
-        listDicItems = [{"selectedAngles": self.prevListAngles}]
-        titleText = "BuildCSV: angles and durations directories"
-        angles = ChooseInList.listTransmit(parent=None,
-                                           graphNo=0,
-                                           listChoix=["selectedAngles"],
-                                           items=self.listAngle,
-                                           listDicItems=listDicItems,
-                                           onePerCol=[0],
-                                           colNames=["angle"],
-                                           typ="chk",
-                                           titleText=titleText)
-        self.prevListAngles = angles[0][0]["selectedAngles"]
-
-        # Select the constant directories
-        listDicItems = [{"selectedConstants": self.prevListConsts}]
-        titleText = "BuildCSV: constant parameter directories"
-        consts = ChooseInList.listTransmit(parent=None,
-                                           graphNo=0,
-                                           listChoix=["selectedConstants"],
-                                           items=self.listConst,
-                                           listDicItems=listDicItems,
-                                           onePerCol=[0],
-                                           colNames=["constant"],
-                                           typ="chk",
-                                           titleText=titleText)
-        self.prevListConsts = consts[0][0]["selectedConstants"]
-
-        # Select the trial directories
-        listDicItems = [{"selectedTrials": self.prevListTrials}]
-        titleText = "BuildCSV: Trial directories"
-        trials = ChooseInList.listTransmit(parent=None,
-                                           graphNo=0,
-                                           listChoix=["selectedTrials"],
-                                           items=self.listTrial,
-                                           listDicItems=listDicItems,
-                                           onePerCol=[0],
-                                           colNames=["Trial"],
-                                           typ="chk",
-                                           titleText=titleText)
-        self.prevListTrials = trials[0][0]["selectedTrials"]
-
-        # Construct the pandas multi-index table
-        ang_folders = tuple(angles[0][0]["selectedAngles"])
-        syn_folders = tuple(consts[0][0]["selectedConstants"])
-        trial_folders = tuple(trials[0][0]["selectedTrials"])
-        print(ang_folders)
-        print(syn_folders)
-        print(trial_folders)
-
-        # Gets the start and the end times from the first chart
-        chart_path = r"CMAeMinChartFiles\CMAeMinChart00.txt"
-        chart_completeName = os.path.join(self.model_dir,
-                                          ang_folders[0],
-                                          syn_folders[0],
-                                          trial_folders[0],
-                                          chart_path)
-        (L, df, titre, tabparams) = chartToDataFrame(chart_completeName)
-        dfsrtTime = df.Time[0]          # Start of the record in chart
-        dfendTime = df.Time[len(df)-1]  # End of the record in chart
-        df.index = df.Time              # df will be indexed with time column
-        self.strtTime = dfsrtTime        # Sets start Time -> 0.5 sec
-        self.endTime = round(dfendTime)  # Sets end Time -> 10 sec (not 10.09)
-
-        """
-        # Plot elbow movement from the first chart
-        df[self.strtTime:self.endTime]["Elbow"].plot(color="b")
-        # df[0.5:10]["Elbow"].plot(color="b")
-        unitx = "Time (s)"
-        unity = "Elbow (degrees)"
-        plt.xlabel(unitx, fontsize=18)
-        plt.ylabel(unity, fontsize=18)
-        plt.legend()
-        """
-
-        self.n_rows = len(df[self.strtTime:self.endTime])
-        # n_rows = len(df[0.5:10])
-        list_col_names = df.columns
-
-        # Gets the selected col namess from the first chart
-        listDicItems = [{"selected_col_Names": self.prevListColNames}]
-        titleText = "BuildCSV: column names"
-        colnames = ChooseInList.listTransmit(parent=None,
-                                             graphNo=0,
-                                             listChoix=["selected_col_Names"],
-                                             items=list_col_names,
-                                             listDicItems=listDicItems,
-                                             onePerCol=[0],
-                                             colNames=["ColNames"],
-                                             # colNames=self.prevListColNames,
-                                             typ="chk",
-                                             titleText=titleText)
-        self.prevListColNames = colnames[0][0]["selected_col_Names"]
-        """
-        self.prevListColNames = ("1FlxGamma",
-                                 "1ExtGamma",
-                                 "1FlxAlpha",
-                                 "1ExtAlpha",
-                                 "Biceps1",
-                                 "Triceps1",
-                                 "1FlxIa",
-                                 "1ExtIa",
-                                 "Elbow")
-        """
-
-        ang = self.prevListAngles[0]
-        const = self.prevListConsts[0]
-        trial = self.prevListTrials[0]
-        model_dir = self.model_dir
-        animatsimdir = os.path.join(model_dir, ang, const, trial)
-        self.optSet, model = getOptSetFromAsim(self, animatsimdir)
-
-        self.optSet.list_chart_to_plot = None
-
-        syn_trial_tup = tuple(product(syn_folders, trial_folders))
-        syn_trial_index = pd.MultiIndex.from_tuples(syn_trial_tup,
-                                                    names=("Synapses",
-                                                           "Trial"))
-        syn_trial_angle_tup = tuple(product(ang_folders,
-                                            syn_folders,
-                                            trial_folders))
-        syn_trial_angle_idx = pd.MultiIndex.from_tuples(syn_trial_angle_tup,
-                                                        names=("AngleDur",
-                                                               "Synapses",
-                                                               "Trial"))
-
-        # Construction of the dataframes for variables and parameters values
-        self.best_xparVals = []
-        prevListConsts = self.prevListConsts
-        prevListTrials = self.prevListTrials
-
-        for ang in ang_folders:
-            # ================================================================
-            # prepares the array of all best parameter sets
-            # print(ang)
-            for const in prevListConsts:
-                # print("\t{}".format(const))
-                for trial in prevListTrials:
-                    # print("\t\t{}".format(trial), end=" ")
-                    res = getBestParamSet(model_dir, ang, const, trial)
-                    (bestChartName, bestparamset) = res
-                    chartpathname = [model_dir, ang, const, trial,
-                                     bestChartName]
-                    self.best_xparVals.append([chartpathname, bestparamset])
-                    # np.set_printoptions(precision=4, floatmode='fixed')
-                    # print "\t\t\t", bestChartName, bestparamset
-            # and builds the correspondign dataframe
-        dataPar = []
-        for idx, par in enumerate(self.best_xparVals):
-            # print(par[1][:8])
-            dataPar.append(par[1][:8])
-        dataPar_np = np.array(dataPar)
-        dataPar_np.transpose((1, 0))
-        pardf = pd.DataFrame(dataPar_np.transpose((1, 0)),
-                             index=self.par_names,
-                             columns=syn_trial_angle_idx)
-        print(pardf)
-        pardf.to_csv(os.path.join(self.model_dir, "output_param.csv"),
-                     sep="\t")
-        self.prevListParams = pardf.index
-
-        for ang in ang_folders:
-            # ================================================================
-            # Prepare one container for each column name
-            containers = dict()
-            for col in self.prevListColNames:
-                containers[col] = pd.DataFrame(columns=syn_trial_index,
-                                               index=np.linspace(0.5, 10,
-                                                                 self.n_rows),
-                                               dtype="float64")
-            # Prepare output folder
-            output_path = os.path.join(self.model_dir, ang, "output")
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
-            # Browse files
-            for syn, trial in syn_trial_tup:
-                full_path = os.path.join(self.model_dir, ang, syn, trial,
-                                         chart_path)
-                data = pd.read_csv(full_path, sep="\t", skiprows=0, header=1)
-                # print(full_path)
-                for col in self.prevListColNames:
-                    # Copy data from file
-                    containers[col].loc[:, (syn, trial)] =\
-                        data.loc[:self.n_rows-1, col].values
-            # Save output files
-            for col in self.prevListColNames:
-                containers[col].to_csv(os.path.join(output_path, col + ".csv"),
-                                       sep="\t")
-        saveCSVStructure(self)
-        # self.analyzeCSVPandas()
-
-    def analyzeCSVPandas(self):
-        self.model_dir = QtWidgets.QFileDialog.\
-            getExistingDirectory(self, "Pick a folder", self.rootdir)
-        self.rootdir = os.path.split(self.model_dir)[0]
-        rep = readCSVStructure(self)
-        if rep:
-            self.launchCSVAnalysis()
-
-    def launchCSVAnalysis(self):
-        # Launches the analysis
-        # Choose movement Angle-Durations
-        listDicItems = [{"selectedAngles": self.prevLsAnglesDur_dir}]
-        titleText = "GRAPHS:select angles and durations"
-        angles_dur = ChooseInList.listTransmit(parent=None,
-                                               graphNo=0,
-                                               listChoix=["selectedAngles"],
-                                               items=self.prevListAngles,
-                                               listDicItems=listDicItems,
-                                               onePerCol=[0],
-                                               colNames=["angle"],
-                                               typ="chk",
-                                               titleText=titleText)
-        self.prevLsAnglesDur_dir = angles_dur[0][0]["selectedAngles"]
-
-        # Choose chart column names variables to be plotted
-        listDicItems = [{"selected_col_Names": self.prevLstPltColNames}]
-        titleText = "GRAPHS:select column names"
-        colnames = ChooseInList.listTransmit(parent=None,
-                                             graphNo=0,
-                                             listChoix=["selected_col_Names"],
-                                             items=self.prevListColNames,
-                                             listDicItems=listDicItems,
-                                             onePerCol=[0],
-                                             colNames=["ColNames"],
-                                             # colNames=self.prevListColNames,
-                                             typ="chk",
-                                             titleText=titleText)
-        self.prevLstPltColNames = colnames[0][0]["selected_col_Names"]
-
-        # Choose constant values trials to be plotted
-        listDicItems = [{"selected_ConstParam": self.prevLstConstVal_dir}]
-        titleText = "GRAPHS: select Constant Parameters"
-        colnames = ChooseInList.listTransmit(parent=None,
-                                             graphNo=0,
-                                             listChoix=["selected_ConstParam"],
-                                             items=self.prevListConsts,
-                                             listDicItems=listDicItems,
-                                             onePerCol=[0],
-                                             colNames=["Constants"],
-                                             # colNames=self.prevListColNames,
-                                             typ="chk",
-                                             titleText=titleText)
-        self.prevLstConstVal_dir = colnames[0][0]["selected_ConstParam"]
-
-        # Choose parameters to be plotted
-        listDicItems = [{"selected_Parameters": self.prevLstPltParams}]
-        titleText = "GRAPHS: select Constant Parameters"
-        colnames = ChooseInList.listTransmit(parent=None,
-                                             graphNo=0,
-                                             listChoix=["selected_Parameters"],
-                                             items=self.prevListParams,
-                                             listDicItems=listDicItems,
-                                             onePerCol=[0],
-                                             colNames=["Parameters"],
-                                             # colNames=self.prevListColNames,
-                                             typ="chk",
-                                             titleText=titleText)
-        self.prevLstPltParams = colnames[0][0]["selected_Parameters"]
-
-        # Get movement Angle-Durations parameters from pickle file
-        self.list_VSCDParam = []
-        for angdur in self.prevLsAnglesDur_dir:
-            const = self.prevListConsts[0]
-            trial = self.prevListTrials[0]
-            # output_path = os.path.join(self.model_dir, angdur, "output")
-            result_path = os.path.join(self.model_dir, angdur, const, trial,
-                                       "ResultFiles")
-            pklfileName = 'paramOpt.pkl'
-            if read_pklfile(self, os.path.join(result_path, pklfileName)):
-                print("pikle file has been red")
-                dic_VSCDparam = {}
-                for idx, val in enumerate(self.paramVSCDName):
-                    dic_VSCDparam[val] = self.paramVSCDValue[idx]
-                print("angle:\t{0}\tto\t{1}".format(dic_VSCDparam["angle1"],
-                                                    dic_VSCDparam["angle2"]))
-                print("endMvt1:\t{}".format(dic_VSCDparam["endMvt1"]))
-                self.endMvt1 = dic_VSCDparam["endMvt1"]
-                print("endPos1:\t{}".format(dic_VSCDparam["endPos1"]))
-                self.endPos1 = dic_VSCDparam["endPos1"]
-                print("endMvt2:\t{}".format(dic_VSCDparam["endMvt2"]))
-                self.endMvt2 = dic_VSCDparam["endMvt2"]
-                print("endPos2:\t{}".format(dic_VSCDparam["endPos2"]))
-                self.endPos2 = dic_VSCDparam["endPos2"]
-                self.list_VSCDParam.append(dic_VSCDparam)
-        # Get series values of the last const and combine with trial numbers
-        self.list_constVal = []
-        for const in self.prevLstConstVal_dir:
-            lastConstPar = const
-            while lastConstPar.find("=") != -1:
-                lastConstPar = lastConstPar[lastConstPar.find("=")+1:]
-            # print(lastConstPar)
-            for idx, trial in enumerate(self.prevListTrials):
-                self.list_constVal.append("{0}-{1}".format(lastConstPar,
-                                                           idx+1))
-        self.listMvtTrial = []
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        (mvt_by_angle, angles, durees) = get_angle_dur(select_angledur_dir)
-        for ang in angles:
-            angval = ang[ang.find("=")+1:]
-            # print(angval)
-            for dur in durees:
-                durval = dur[dur.find("=")+1:]
-                # print(("\t{}".format(durval)))
-                for const in self.prevLstConstVal_dir:
-                    lastConst = const
-                    while lastConst.find("=") != -1:
-                        lastConst = lastConst[lastConst.find("=")+1:]
-                    # print("\t\t{}".format(lastConst))
-                    for idx, trial in enumerate(self.prevListTrials):
-                        mvt_trial_id = "{0}_{1}_{2}_{3}".format(angval,
-                                                                durval,
-                                                                lastConst,
-                                                                idx+1)
-                        # print("\t\t\t{}".format(mvt_trial_id))
-                        self.listMvtTrial.append(mvt_trial_id)
-
-        self.graph_var()
-        self.graph_mvt()
-        self.graph_supmvt()
-        self.graph_param()
-        self.graph_cor()
-
-    def graph_var(self):
-        """
-        Plot separately Deb, Max, Fin values for each selected chart column
-        Each plot shows the values for each const parameter and all trials
-        Results are plotted in different colors for different mvt durations
-        Results for the different angles are on separate sheeet graph
-        these graphs are saved in the model_dir
-        """
-        model_dir = self.model_dir
-        list_VSCDParam = self.list_VSCDParam
-        strtTime = self.strtTime
-        endTime = self.endTime
-        prevListConsts = self.prevListConsts
-        prevListTrials = self.prevListTrials
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        select_var_names_plt = self.prevLstPltColNames
-        selectLst_const_trial = self.list_constVal
-        make_graph_var(model_dir, list_VSCDParam, strtTime, endTime,
-                       prevListConsts, prevListTrials,
-                       selectLst_const_trial, select_angledur_dir,
-                       select_var_names_plt)
-
-    def graph_mvt(self):
-        """
-        Builds the elbow movement for each angle on a separates files
-        (and for all mvt durations).
-        """
-        model_dir = self.model_dir
-        list_VSCDParam = self.list_VSCDParam
-        strtTime = self.strtTime
-        endTime = self.endTime
-        prevListConsts = self.prevListConsts
-        prevListTrials = self.prevListTrials
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        select_var_names_plt = self.prevLstPltColNames
-        selectLst_const_trial = self.list_constVal
-        make_graph_mvt(model_dir, list_VSCDParam, strtTime, endTime,
-                       prevListConsts, prevListTrials,
-                       selectLst_const_trial, select_angledur_dir,
-                       select_var_names_plt)
-
-    def graph_supmvt(self):
-        """
-        Movements of different durations are superimposed in graphs of same
-        angles
-        """
-        model_dir = self.model_dir
-        list_VSCDParam = self.list_VSCDParam
-        strtTime = self.strtTime
-        endTime = self.endTime
-        prevListConsts = self.prevListConsts
-        prevListTrials = self.prevListTrials
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        select_var_names_plt = self.prevLstPltColNames
-        selectLst_const_trial = self.list_constVal
-        make_graph_supmvt(model_dir, list_VSCDParam, strtTime, endTime,
-                          prevListConsts, prevListTrials,
-                          selectLst_const_trial, select_angledur_dir,
-                          select_var_names_plt)
-
-    def graph_param(self):
-        """
-        Plots relationships between parameters for various angle and durations
-        """
-        model_dir = self.model_dir
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        select_constVal_dir = self.prevLstConstVal_dir
-        selectLst_const_trial = self.list_constVal
-        prevLstPltParams = self.prevLstPltParams
-        make_graph_param(model_dir, select_constVal_dir, select_angledur_dir,
-                         selectLst_const_trial, prevLstPltParams)
-
-    def graph_cor(self):
-        """
-        Plots relationships between parameters for various angle and durations
-        """
-        model_dir = self.model_dir
-        list_VSCDParam = self.list_VSCDParam
-        select_angledur_dir = self.prevLsAnglesDur_dir
-        select_constVal_dir = self.prevLstConstVal_dir
-        prevListConsts = self.prevListConsts
-        prevListTrials = self.prevListTrials
-        select_var_names_plt = self.prevLstPltColNames
-        selectLst_const_trial = self.list_constVal
-        prevLstPltParams = self.prevLstPltParams
-        make_graph_par_var_cor(model_dir, list_VSCDParam,
-                               select_constVal_dir, select_angledur_dir,
-                               prevListConsts, prevListTrials,
-                               selectLst_const_trial, prevLstPltParams,
-                               select_var_names_plt)
 
 # TODO
     def makegr_chart_tcourse(self):
@@ -8729,9 +7512,181 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.makeGraphFromChart(fname)
 
 
+    def analyze_bhv_neur_par_chart(self):
+        list_elem = ["Create a new chart bhv_par_neur_dataframe",
+                     "Read a previous chart bhv_par_neur_dataframe"]
+        typ = "Choose"
+        title = "choose what top do"
+        choice = choose_one_element_in_list(title, list_elem, typ)
+        print(choice)
+        if choice == "Create a new chart bhv_par_neur_dataframe":
+            self.create_df_for_bhv_neur_par()
+        else:
+            self.read_csv_for_df_bhv_neur_par()
+        
+        """
+        ======================================================================
+        Creates an instance of Graph_setting command window
+        ======================================================================
+        """
+        list_bhvVar = [u'varmse', u'startangle', u'ampl',
+                    u'max_speed', u'dur_mvt2']
+        self.list_bhvVar = list_bhvVar
+        listpar = self.par_names
+        # listbhv = self.bhv_names
+        listbhv = self.list_bhvVar
+        
+        self.graph_settings = Graph_Setting(listpar, listbhv,
+                                            self.chart_glob_df, self)
+        self.graph_settings.show()
+        # ========= positionning the Graph_Setting window on screen ===========
+        sg = QtWidgets.QDesktopWidget().screenGeometry()
+        mywin_height = self.geometry().height()
+        graphSet_height = self.graph_settings.geometry().height()
+        # graphSet_width = self.graph_settings.geometry().width()
+        xshift = 10
+        yshift = sg.height() - graphSet_height - mywin_height - 40
+        self.graph_settings.screen_loc(xshift=xshift, yshift=yshift)
+        # =====================================================================
 
 
-    def analyze_neur_bhv(self):
+# TODO: to be continued... activate mltpleExpeGraph                   
+
+    def read_csv_for_df_bhv_neur_par(self):
+        res = (QtWidgets.QFileDialog.
+               getOpenFileName(self, "Choose bhv_df_csv file to analyse",
+                               self.mydir, "Files (*csv)"))
+        if type(res) == tuple:
+            self.fname, __tmp = res
+        else:
+            self.fname = res
+        print(self.fname)
+        if self.fname is not None:
+            self.mydir = os.path.split(self.fname)[0]
+            self.chart_glob_df = pd.read_csv(self.fname)
+            self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'],
+                                                         axis=1)
+            self.chart_glob_df.dropna(inplace=True)
+            print(self.chart_glob_df)
+            lst_glob_df_colNames = list(self.chart_glob_df.columns)
+            self.neur_act_names = [nam for nam in lst_glob_df_colNames
+                                   if nam not in self.bhv_names
+                                   and nam not in self.par_names
+                                   and nam not in ['chart', 'ampl',
+                                                   'rgserie', 'origine',
+                                                   'orig_rg', 'rg_in_whole']]
+            if os.path.split(self.mydir)[-1] != "GEPdata":
+                one_expe = False
+                mltpleDirPath = self.mydir 
+                with open(mltpleDirPath+'/dic_folds.json') as f:
+                    dic_folder_st = json.load(f)
+                    dic_folder = change_key_str_to_int(dic_folder_st)
+                self.listGEPFolders = []
+                for idx in list(dic_folder.keys()):
+                    self.listGEPFolders.append(dic_folder[idx])
+            else:
+                one_expe = True
+                self.listGEPFolders = [self.mydir]
+
+                self.graph_path = os.path.split(self.mydir)[0] + "/graphs"
+            """ 
+            ==============================================================
+            #      building of the global df_bhvremain and df_parremain
+            ==============================================================
+            """
+            self.directory = self.mydir
+            self.ensembleRunDir = os.path.split(self.directory)[0]
+            self.prevListFolders = self.listGEPFolders
+            tab_bhv = readTablo(self.listGEPFolders[0], "GEPdata00bhv.txt")
+            tab_bhv = np.array(tab_bhv)
+            self.tab_bhv = tab_bhv
+            self.one_expe = one_expe
+
+            # ================================================================
+            self.construct_df_par_bhv_remains()    
+            # ================================================================
+            lst_df_parremain = self.lst_df_parremain
+            lst_df_bhvremain = self.lst_df_bhvremain
+            lst_lenTab = self.lst_lenTab
+            """ 
+            ==============================================================
+            """
+            lst_valid = []
+            lst_rgserie = []
+            if one_expe:
+                self.df_parremain = lst_df_parremain[0]
+                self.df_bhvremain = lst_df_bhvremain[0]
+                self.lst_valid = list(lst_df_bhvremain[0].index)
+            else:
+                self.graph_path = self.mydir
+                for idy, df_bhv in enumerate(lst_df_bhvremain):
+                    if idy > 0:
+                        arr_rgserie = np.array(df_bhv.rgserie) \
+                            + lst_lenTab[idy-1]
+                    else:
+                        arr_rgserie = np.array(df_bhv.rgserie)
+                    lst_rgserie = list(arr_rgserie)
+                    print(lst_rgserie)
+                    lst_valid = lst_valid + lst_rgserie
+                print(lst_valid)
+                self.lst_valid = lst_valid
+                    
+            # ====  Creates df_parremain compatible with global df index  ====
+            self.df_bhvremain = self.df_bhvremain.astype({"origine": int})
+            self.df_parremain = self.df_parremain.astype({"origine": int})
+            self.df_bhvremain.loc[:, "orig_rg"] = self.df_bhvremain["rgserie"]
+            self.df_bhvremain.loc[:, "rgserie"] = self.lst_valid
+            self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
+            self.df_parremain.loc[:, "rgserie"] = self.lst_valid
+            lst_valid_chart = list(self.chart_glob_df["rgserie"])
+            self.df_parremain_OK = self.df_parremain["rgserie"].isin(lst_valid_chart)
+            self.df_parremain = self.df_parremain[self.df_parremain_OK]
+            self.df_bhvremain_OK = self.df_bhvremain["rgserie"].isin(lst_valid_chart)          
+            self.df_bhvremain = self.df_bhvremain[self.df_bhvremain_OK]
+            index = list(self.chart_glob_df["rg_in_whole"])
+            #self.df_parremain.index = np.arange(len(self.df_parremain))
+            #self.df_bhvremain.index = np.arange(len(self.df_bhvremain))
+            self.df_parremain.index = index
+            self.df_bhvremain.index = index
+            self.chart_glob_df.index = index
+            self.df_glob = self.chart_glob_df
+            df_bhv = self.df_bhvremain
+
+            #self.actualize_mafen(self.GEP_GUI_win,
+            #                     self.aprojFicName, self.optSet)
+            if self.mafen.mvt_ord_maxSpeed == 1: # ord is "maxSpeed"
+                self.behav_col = [3, 6]
+            else:
+                self.behav_col = [3, 8]
+            if self.behav_col[1] == 8:
+                self.scale_x, self.scale_y = 100, 1
+            elif self.behav_col[1] == 6:
+                self.scale_x, self.scale_y = 100, 100
+            max_x_bhv = df_bhv[df_bhv.columns[self.behav_col[0]]].max()
+            max_y_bhv = df_bhv[df_bhv.columns[self.behav_col[1]]].max()
+            max_x = float(int(max_x_bhv*10)+1)/10
+            max_y = float(int(max_y_bhv*10)+1)/10
+            self.xmin = 0
+            self.xmax = max_x
+            self.ymin = 0
+            self.ymax = max_y
+            bhv_xmin = 0
+            bhv_xmax = max_x/self.scale_x
+            bhv_ymin = 0
+            bhv_ymax = max_y/self.scale_y
+            self.bhv_xmin = bhv_xmin*self.scale_x   # for Graph_Setting window
+            self.bhv_xmax = bhv_xmax*self.scale_x   # for Graph_Setting window
+            self.bhv_ymin = bhv_ymin*self.scale_y
+            self.bhv_ymax = bhv_ymax*self.scale_y
+            namex = self.bhv_names[self.behav_col[0]]
+            namey = self.bhv_names[self.behav_col[1]]
+            self.bhv_set = {}
+            keys = [namex+'.min', namex+'.max', namey+'.min', namey+'.max']
+            values = [0, self.bhv_xmax, 0, self.bhv_ymax]
+            for idx, key in enumerate(keys):
+                self.bhv_set[key] = values[idx]
+
+    def create_df_for_bhv_neur_par(self):
         """
         Parameters
         ----------
@@ -8763,7 +7718,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         # list_neur = ["1FlxIa", "1ExtIa"]
         # list_neur = ["1FlxAlpha", "1ExtAlpha"]
         # list_neur = ["1FlxIa", "1ExtIa", "1FlxAlpha", "1ExtAlpha"]
-
+        self.scale_x, self.scale_y = self.mafen.scale_x, self.mafen.scale_y
         """
         =====================================================================
         creates new_sub_df_chart with selected neurons present in the chart
@@ -8773,7 +7728,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         selected = optSet.sensColChartNames
         list_elem = optSet.chartColNames
         typ = "chart_col"
-        text = "select sensory neurons to plot and analyse"
+        text = "select neurons to plot and analyse"
         list_neur = choose_elements_in_list(list_elem, typ, selected, text)
         print(self.listGEPFolders)
         self.nbExpe = len(self.listGEPFolders)
@@ -8886,30 +7841,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             )
         self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'], axis=1)
         self.chart_glob_df.dropna(inplace=True)
-
-        """
-        ======================================================================
-        Creates an instance of Graph_setting command window
-        ======================================================================
-        """
-        listpar = self.par_names
-        # listbhv = self.bhv_names
-        listbhv = self.list_bhvVar
-        self.graph_settings = Graph_Setting(listpar, listbhv,
-                                            self.chart_glob_df, self)
-        self.graph_settings.show()
-        # ========= positionning the Graph_Setting window on screen ===========
-        sg = QtWidgets.QDesktopWidget().screenGeometry()
-        mywin_height = self.geometry().height()
-        graphSet_height = self.graph_settings.geometry().height()
-        # graphSet_width = self.graph_settings.geometry().width()
-        xshift = 10
-        yshift = sg.height() - graphSet_height - mywin_height - 40
-        self.graph_settings.screen_loc(xshift=xshift, yshift=yshift)
-        # =====================================================================
-
-# TODO: to be continued...link with  global_df   anaysis
-        
+        self.df_glob = self.chart_glob_df
 
 
     def analyze_triphasic(self):
