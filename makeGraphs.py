@@ -223,16 +223,6 @@ Modified April 12, 2024 (D. Cattaert):
 	using "orig_rg" and "origine". The index of chart_global_df
 	is now compatible with indexes of df_parremain and
 	df_bhvremain
-Modified April 24, 2024 (D. Cattaert):
-	Old methods (used for the old format "experiments series")
-	have been suppressed.
-	New procedures introduced to Analyze neuron activities and par
-	vs bhv. Now it is possible to opena previously saved 
-	"df_chart_bhv_neur_param.csv" to make graphs. The new method
-	("read_csv_for_df_bhv_neur_par()") relies on a part of the old
-	"build_newdf()" method to reconstruct the df_parremain and
-	df_bhvremain dataframes.
-	To do this, "build_newdf()" has been splitted into four sub methods
 """
 import os
 from os import listdir
@@ -5026,7 +5016,14 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.listDicSelectedBhv2 = [{'behaviours': []}, {'factor': []}]
         self.selected_bhv2 = []
         self.selected_factorbhv = []
-
+        
+        self.listDicSelectedNeurAct = [{'neural activities': []}]
+        self.selected_neurAct = []
+        self.listDicSelectedNeurAct2 = [{'neural activities': []},
+                                        {'factor': []}]
+        self.selected_neurAct2 = []
+        self.selected_factoNeurAct = []
+        
         self.listDicSelSingleCol = [{'selectedCol': []}]
         self.listDicSelCols = [{'selectedCols': []}]
         self.lstDicSelcXY = [{'X': [], "Y": []}]
@@ -5388,11 +5385,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.selected_par = self.listDicSelectedPar[0][listChoix[0]]
 
         listChoix = ["behaviours"]
-        if self.df is not None:
-            bhv_names = self.GUI_Gr_obj.list_bhvVar \
-                      + self.GUI_Gr_obj.neur_act_names
-        else:
-            bhv_names = self.GUI_Gr_obj.bhv_names
+        bhv_names = self.GUI_Gr_obj.list_bhvVar
         self.items = bhv_names
         # self.items = self.GUI_Gr_obj.bhv_names
         titleText = "Select behaviour cues for analysis"
@@ -5408,6 +5401,26 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
 
         self.listDicSelectedBhv = rep[0]
         self.selected_bhv = self.listDicSelectedBhv[0][listChoix[0]]
+
+        if self.df is not None:
+            listChoix = ["neural activities"]
+            neur_act_names =self.GUI_Gr_obj.neur_act_names
+            self.items = neur_act_names
+            titleText = "Select neural activities for analysis"
+            rep = ChooseInList.listTransmit(
+                parent=None,
+                graphNo=0,
+                listChoix=listChoix,
+                items=self.items,
+                listDicItems=self.listDicSelectedNeurAct,
+                onePerCol=[0],
+                colNames=["neural activities"],
+                typ="chk",
+                titleText=titleText)
+
+            self.listDicSelectedNeurAct = rep[0]
+            self.selected_neurAct=self.listDicSelectedNeurAct[0][listChoix[0]]
+            
 
         listChoix = ["selectedCol"]
         par_names = self.GUI_Gr_obj.par_names
@@ -5436,6 +5449,8 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.list_bhv = self.selected_bhv
         self.GUI_Gr_obj.list_par = self.selected_par
         self.GUI_Gr_obj.factor = self.selected_factor[0]
+        if self.df is not None:
+            self.GUI_Gr_obj.list_neurAct = self.selected_neurAct
 
     def choose_scatterMatrix_variables(self):
         """
@@ -5661,6 +5676,9 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         if self.selected_factor != []:
             self.GUI_Gr_obj.plot_par_bhv()
             self.GUI_Gr_obj.plot_par_par()
+            if self.df is not None:
+                self.GUI_Gr_obj.plot_bhv_neur()
+                self.GUI_Gr_obj.plot_par_neur()
         else:
             print("Select variables first!!")
 
@@ -6754,6 +6772,34 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         MyWin.make_graph_lsty_lstx(df_glob, list_par, list_par,
                                    titre, ss_titre, factor)
 
+
+    def plot_bhv_neur(self):
+        """
+        Plots a series of bhv=f(par) graphs plus a 3rd variable with colorscale
+        """
+        df_glob = self.df_glob
+        list_bhv = self.list_bhv
+        list_neurAct = self.list_neurAct
+        ss_titre = self.ss_titre
+        factor = self.factor
+        titre = "Fig0_bhvneur"
+        MyWin.make_graph_lsty_lstx(df_glob, list_neurAct, list_bhv, 
+                                   titre, ss_titre, factor)
+
+    def plot_par_neur(self):
+        """
+        Plots a series of par=f(par) graphs for a focus of bhvs  plus a 3rd
+        variable with color scale
+        """
+        df_glob = self.df_glob
+        list_par = self.list_par
+        list_neurAct = self.list_neurAct
+        ss_titre = self.ss_titre
+        factor = self.factor
+        titre = "Fig1_parneur"
+        MyWin.make_graph_lsty_lstx(df_glob, list_neurAct, list_par,
+                                   titre, ss_titre, factor)
+
     def plot_single(self):
         """
         Plots a single scatter graph for two variables plus a 3rd with color
@@ -6986,7 +7032,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         bhv2max = bhv_keys[2]
         bhv2min = bhv_keys[3]
         bvh1_name = bhv1min[:bhv1min.find(".")]
-        bvh1_name_short = bvh1_name[:-2]
+        # bvh1_name_short = bvh1_name[:-2]
+        bvh1_name_short = bvh1_name[:]
         bvh2_name = bhv2min[:bhv2min.find(".")]
         bvh2_name_short = bvh2_name[:-3]
         # sd_bhv = bhv_set["sd"]
@@ -7151,7 +7198,9 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
         # model_dir = self.ensembleRunDir
         graph_path = self. graph_path
-        nrows = 1 + len(listX) // 3
+        nrows = len(listX) // 3
+        if nrows < len(listX) / 3:
+            nrows += 1
         # ncols= min(len(listX), 3)
         ncols = 3
         print("listY = ", listY)
@@ -7200,7 +7249,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             else:
                 figure, ax = plt.subplots(nrows=nrows, ncols=ncols,
                                           figsize=(8, 9), dpi=100,
-                                          gridspec_kw={'hspace': 0.2,
+                                          gridspec_kw={'hspace': 0.3,
                                                        'wspace': 0.05},
                                           # gridspec_kw={'vspace': 2},
                                           # sharex='col',
@@ -7222,20 +7271,25 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                           marker='o', markersize=1,
                                           linewidth=0)
 
-                    ax[row, col].set_xlabel(setX, fontsize=10)
-                    ax[row, col].xaxis.set_label_coords(0.5, 1.08)
+                    ax[row, col].set_xlabel(setX, fontsize=8)
+                    ax[row, col].xaxis.set_label_coords(0.5, 1.09)
                     # ax[row, col].set_title(setX, fontsize=9)
                     if col == 0:
-                        ax[row, col].set_ylabel(setY, fontsize=10)
+                        None
+                        # ax[row, col].set_ylabel(setY, fontsize=8)
                     if row == 0 and col == 2:
                         None
                     if row == lastrow:
                         ax[row, col].tick_params(axis='x', rotation=70)
-            setY_short = setY[:setY.find(".")]
+            
+            if setY.find(".") == -1:
+                setY_short = setY
+            else:
+                setY_short = setY[:setY.find(".")]
             tit = "{}-{}-col={}".format(titre, setY_short, factor)
             titre_2lines = "{}\n{}".format(tit, ss_titre)
             ysize = len(listX) * 2
-            plt.suptitle(titre_2lines, fontsize=14, y=1.05-ysize*0.005)
+            plt.suptitle(titre_2lines, fontsize=11, y=1.05-ysize*0.005)
 
             if factor is not None:
                 labels = copy.deepcopy(classes)
@@ -7269,6 +7323,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                                loc=(1.25, 0))
                     plt.gca().add_artist(second_legend)
                     plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+            figure.text(0.04, 0.5, setY, va='center', rotation='vertical')
             sstit = ss_titre_to_txt(ss_titre)
             """
             plt.savefig(r'{0}/{1} {2}.eps'.format(graph_path, tit, sstit),
