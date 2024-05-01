@@ -223,6 +223,31 @@ Modified April 12, 2024 (D. Cattaert):
 	using "orig_rg" and "origine". The index of chart_global_df
 	is now compatible with indexes of df_parremain and
 	df_bhvremain
+Modified April 24, 2024 (D. Cattaert):
+	Old methods (used for the old format "experiments series")
+	have been suppressed.
+	New procedures introduced to Analyze neuron activities and par
+	vs bhv. Now it is possible to opena previously saved 
+	"df_chart_bhv_neur_param.csv" to make graphs. The new method
+	("read_csv_for_df_bhv_neur_par()") relies on a part of the old
+	"build_newdf()" method to reconstruct the df_parremain and
+	df_bhvremain dataframes.
+	To do this, "build_newdf()" has been splitted into four sub methods
+Modified May 1st, 2024 (D; Cattaert):
+    Bug fixed in method "run_selected_bhv". Selected_seeds are obtained from
+    the index of the dataframe "df_glob". This is OK but the corresponding
+    parameters were not at those rows, becaus correct rows are indicated in
+    rgserie column NOT AT INDEX!!! This is why the correct row of each
+    parameter (in optSet.pairs) is calculated :
+        rg_pair = int(df_bhvremain.loc[select]["rgserie"])
+        The script was chaned accordingly:
+            seeds_selected = list(df_glob.index))
+            selected_pairs = []
+            for select in seeds_selected:
+                print(df_parremain.loc[select][:5])
+                rg_pair = int(df_bhvremain.loc[select]["rgserie"])
+                print(optSet.pairs[rg_pair][:5])
+                selected_pairs.append(optSet.pairs[rg_pair])
 """
 import os
 from os import listdir
@@ -236,8 +261,9 @@ from ctypes import wintypes as w
 import matplotlib.pyplot as plt
 # import matplotlib.colors as pltcolors
 import matplotlib.pylab as pylab
+import matplotlib as mpl
 # from matplotlib import colors as mcolors
-from matplotlib import cm
+# from matplotlib import cm
 
 import json
 
@@ -1995,7 +2021,8 @@ def makeRadarFromExcelPar_csv(df_radar, lst_title, sup_title, sub_title,
     # Create a color palette:
     # my_palette = plt.cm.get_cmap("Set2", len(df_radar.index))
     # my_palette = plt.cm.get_cmap("tab20", len(df_radar.index))
-    my_palette = plt.cm.get_cmap("gist_ncar", len(df_radar.index)+2)
+    # my_palette = plt.cm.get_cmap("gist_ncar", len(df_radar.index)+2)
+    my_palette = mpl.colormaps["gist_ncar"](len(df_radar.index)+2)
     # my_palette = plt.cm.get_cmap("nipy_spectral", len(df_radar.index)+1)
     filled = True
     overdraw = False
@@ -2041,7 +2068,7 @@ def overdrawRadarFromExcelPar_csv(df_radar, lst_title, sup_title, sub_title,
     # Create a color palette:
     # my_palette = plt.cm.get_cmap("Set2", len(df_radar.index))
     # my_palette = plt.cm.get_cmap("tab20", len(df_radar.index))
-    my_palette = plt.cm.get_cmap("gist_ncar", len(df_radar.index)+2)
+    my_palette = mpl.colormaps["gist_ncar"](len(df_radar.index)+2)
     # my_palette = plt.cm.get_cmap("nipy_spectral", len(df_radar.index)+1)
     filled = False
 
@@ -5248,6 +5275,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         df_glob = self.GUI_Gr_obj.df_glob
         # lst_valid = self.GUI_Gr_obj.lst_valid
         seeds_selected = list(df_glob.index)
+        # seeds_selected = list(df_glob.rgserie)
         selected_pairs = []
         for select in seeds_selected:
             """
@@ -5258,8 +5286,9 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
             selected_pairs.append(optSet.pairs[idx_pairs])
             """
             print(df_parremain.loc[select][:5])
-            print(optSet.pairs[select][:5])
-            selected_pairs.append(optSet.pairs[select])
+            rg_pair = int(df_bhvremain.loc[select]["rgserie"])
+            print(optSet.pairs[rg_pair][:5])
+            selected_pairs.append(optSet.pairs[rg_pair])
         self.GUI_Gr_obj.mafen.selected_pairs = selected_pairs
 
         # datastructure = self.GUI_Gr_obj.datastructure
@@ -5353,7 +5382,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
             # graphfromchart(optSet, chartdir, chartName, templateFileName)
             chartFullName = chartdir + "/" + chartName
             try:
-                testVarMsePlot(optSet, chartFullName, interval=1./8)
+                testVarMsePlot(optSet, chartFullName, interval=1./6)
             except Exception as e:
                 None
                 if verbose > 2:
