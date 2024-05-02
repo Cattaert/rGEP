@@ -134,7 +134,7 @@ Modified February 3, 2023 (D. Cattaert):
     Modifications of build_newdf() method:
         After selectiion of several folders, the index of df_bhvremain and
         df_parremain are no more set to range(len(self.df_parremain)) but to
-        self.lst_valid, the list of valid elements (varmse<1) adapted to tke
+        self.lst_valid, the list of valid elements (varmse<1) adapted to take
         into account the origin of elements (i.e. the folder of origin)
         self.df_bhvremain.index = self.lst_valid
         self.df_parremain.index = self.lst_valid
@@ -248,6 +248,9 @@ Modified May 1st, 2024 (D; Cattaert):
                 rg_pair = int(df_bhvremain.loc[select]["rgserie"])
                 print(optSet.pairs[rg_pair][:5])
                 selected_pairs.append(optSet.pairs[rg_pair])
+Modified May 02, 2024 (D. Cattaert):
+	Bug in method "run-semected-bhv()' fixed. Now, df-parremain and
+df-bhvremain indexes correspond to seeds-selected = df_glob.rgserie
 """
 import os
 from os import listdir
@@ -5274,21 +5277,20 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         self.GUI_Gr_obj.mafen.select_df_bhvremain = df_bhvremain
         df_glob = self.GUI_Gr_obj.df_glob
         # lst_valid = self.GUI_Gr_obj.lst_valid
-        seeds_selected = list(df_glob.index)
+        seeds_selected = list(df_glob.rgserie)
+        df_parremain.index = seeds_selected
+        df_bhvremain.index = seeds_selected
+        nbpar = self.GUI_Gr_obj.mafen.nbpar
         # seeds_selected = list(df_glob.rgserie)
         selected_pairs = []
+        old_selected_pairs = []
         for select in seeds_selected:
-            """
-            idx_pairs = lst_valid[select]
-            print(select, lst_valid[select])
-            print(df_parremain.loc[select][:5])
-            print(optSet.pairs[idx_pairs][:5])
-            selected_pairs.append(optSet.pairs[idx_pairs])
-            """
             print(df_parremain.loc[select][:5])
             rg_pair = int(df_bhvremain.loc[select]["rgserie"])
             print(optSet.pairs[rg_pair][:5])
-            selected_pairs.append(optSet.pairs[rg_pair])
+            old_selected_pairs.append(optSet.pairs[rg_pair])
+            selected_pairs.append(np.array(df_parremain.loc[select][:nbpar+2]))
+            print()
         self.GUI_Gr_obj.mafen.selected_pairs = selected_pairs
 
         # datastructure = self.GUI_Gr_obj.datastructure
