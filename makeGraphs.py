@@ -249,8 +249,14 @@ Modified May 1st, 2024 (D; Cattaert):
                 print(optSet.pairs[rg_pair][:5])
                 selected_pairs.append(optSet.pairs[rg_pair])
 Modified May 02, 2024 (D. Cattaert):
-	Bug in method "run-semected-bhv()' fixed. Now, df-parremain and
-df-bhvremain indexes correspond to seeds-selected = df_glob.rgserie
+	Bug in method "run-selected-bhv()' fixed. Now, df-parremain and
+    df-bhvremain indexes correspond to seeds-selected = df_glob.rgserie
+Modified May 15, 2024 (D. Cattaert):
+    Bug in construct_df_par_bhv_remains() and read_csv_for_df_bhv_neur_par()
+    methods have been fixedc:
+        "sum_precedingTab" variable was added to sum preceeding tables in order
+        to get a correct final index
+    
 """
 import os
 from os import listdir
@@ -5289,7 +5295,8 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
             rg_pair = int(df_bhvremain.loc[select]["rgserie"])
             print(optSet.pairs[rg_pair][:5])
             old_selected_pairs.append(optSet.pairs[rg_pair])
-            selected_pairs.append(np.array(df_parremain.loc[select][:nbpar+2]))
+            selected_pairs.append(np.array(
+                df_parremain.loc[select][:nbpar+2]))
             print()
         self.GUI_Gr_obj.mafen.selected_pairs = selected_pairs
 
@@ -6330,6 +6337,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                             lst_df_parremain, lst_df_bhvremain)
                 (concatpairs, concatbehavs,
                  lst_df_parremain, lst_df_bhvremain, lst_lenTab) = res
+            print(lst_df_bhvremain)
             listsubdir = os.listdir(self.ensembleRunDir)
             ix = 0
             for idx, sdir in enumerate(listsubdir):
@@ -6430,12 +6438,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
         lst_valid = []
         lst_rgserie = []
+        sum_precedingTab = 0
         if one_expe:
             self.lst_valid = list(lst_df_parremain[0].index)
         else:
             for idy, df_bhv in enumerate(lst_df_bhvremain):
                 if idy > 0:
-                    arr_rgserie = np.array(df_bhv.rgserie) + lst_lenTab[idy-1]
+                    sum_precedingTab += lst_lenTab[idy-1]
+                    arr_rgserie = np.array(df_bhv.rgserie) + sum_precedingTab
                 else:
                     arr_rgserie = np.array(df_bhv.rgserie)
                 lst_rgserie = list(arr_rgserie)
@@ -7699,6 +7709,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             """
             lst_valid = []
             lst_rgserie = []
+            sum_precedingTab = 0
             if one_expe:
                 self.df_parremain = lst_df_parremain[0]
                 self.df_bhvremain = lst_df_bhvremain[0]
@@ -7707,8 +7718,9 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 self.graph_path = self.mydir
                 for idy, df_bhv in enumerate(lst_df_bhvremain):
                     if idy > 0:
+                        sum_precedingTab += lst_lenTab[idy-1]
                         arr_rgserie = np.array(df_bhv.rgserie) \
-                            + lst_lenTab[idy-1]
+                            + sum_precedingTab
                     else:
                         arr_rgserie = np.array(df_bhv.rgserie)
                     lst_rgserie = list(arr_rgserie)
