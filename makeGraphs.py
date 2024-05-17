@@ -256,6 +256,13 @@ Modified May 15, 2024 (D. Cattaert):
     methods have been fixedc:
         "sum_precedingTab" variable was added to sum preceeding tables in order
         to get a correct final index
+Modified May 17, 2024 (D. Cattaert):
+    Suppression of two lines on read_csv_for_df_bhv_neur_par() method:
+        self.df_bhvremain.loc[:, "orig_rg"] = self.df_bhvremain["rgserie"]
+        self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
+    because self.df_bhvremain and self.df_parremain already got the column
+    entitled "orgi-rg" (in construct_df_par_bhv_remains() method)
+        
     
 """
 import os
@@ -7162,19 +7169,19 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
             else:
                 # ------------ 1st set of legend elements  ----------------
-                labels1 = labels[:nbcolors/2]
+                labels1 = labels[:int(nbcolors/2)]
                 handles1 = [plt.plot([], [], color=color_map[labels[i]],
                             ls="", marker='o',
-                            markersize=6)[0] for i in range(nbcolors/2)]
+                            markersize=6)[0] for i in range(int(nbcolors/2))]
                 # In legend order is that of classes (revert order)
                 first_legend = plt.legend(handles1, labels1, loc=(1.02, 0))
                 plt.gca().add_artist(first_legend)
                 plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
                 # ------------ 2nd set of legend elements  ----------------
-                labels2 = labels[nbcolors/2:]
+                labels2 = labels[int(nbcolors/2):]
                 handles2 = [plt.plot([], [], color=color_map[labels[i]],
                             ls="", marker='o',
-                            markersize=6)[0] for i in range(nbcolors/2,
+                            markersize=6)[0] for i in range(int(nbcolors/2),
                                                             nbcolors)]
                 # In legend order is that of classes (revert order)
                 posx_legend2 = 1 + 80/size[0]
@@ -7732,11 +7739,12 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             # ====  Creates df_parremain compatible with global df index  ====
             self.df_bhvremain = self.df_bhvremain.astype({"origine": int})
             self.df_parremain = self.df_parremain.astype({"origine": int})
-            self.df_bhvremain.loc[:, "orig_rg"] = self.df_bhvremain["rgserie"]
+            #self.df_bhvremain.loc[:, "orig_rg"] = self.df_bhvremain["rgserie"]
             self.df_bhvremain.loc[:, "rgserie"] = self.lst_valid
-            self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
+            #self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
             self.df_parremain.loc[:, "rgserie"] = self.lst_valid
             lst_valid_chart = list(self.chart_glob_df["rgserie"])
+            
             self.df_parremain_OK = self.df_parremain["rgserie"].isin(lst_valid_chart)
             self.df_parremain = self.df_parremain[self.df_parremain_OK]
             self.df_bhvremain_OK = self.df_bhvremain["rgserie"].isin(lst_valid_chart)          
