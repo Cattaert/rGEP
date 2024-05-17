@@ -262,7 +262,13 @@ Modified May 17, 2024 (D. Cattaert):
         self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
     because self.df_bhvremain and self.df_parremain already got the column
     entitled "orgi-rg" (in construct_df_par_bhv_remains() method)
-        
+    in and self.df_parremain already got the column
+    
+    In order to allow analysis being made from a different computer, with path
+    different from the one used to build the multipleExpeGraph-x folders, the
+    method "construct_df_par_bhv_remains()" has been modified so that it works
+    with relative folder addresses established from self.directory
+    annimatsimdir is rebuilt to make it compatible with the computer paths
     
 """
 import os
@@ -439,7 +445,7 @@ class Form(QtWidgets.QWidget):
 def change_key_str_to_int(dic_folder_st):
     rep = {}
     for key in list(dic_folder_st.keys()):
-        rep[int(key)] = dic_folder_st[key]
+        rep[int(key)] = dic_folder_st[key].replace("\\", "/")
     return rep
 
 
@@ -6299,11 +6305,17 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.df_parremain = None
         self.dic_df_origine = {}
 
-        directory = self.directory
+        # directory = self.directory
+        directory = self.ensembleRunDir
         one_expe = self.one_expe
         # listOfSearchedDir = self.listOfSearchedDir
         tab_bhv = self.tab_bhv
         
+        rootdir = os.path.split(directory)[0]
+        self.rootdir = rootdir
+        rootfolder = os.path.split(rootdir)[-1]
+        self.rootfolder = rootfolder
+        lenrootfld = len(rootfolder) 
         # if self.optSet is None:
         getInfoAsim = True
         if one_expe:
@@ -6311,7 +6323,12 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 getInfoAsim = False
         
         gepdataFold = self.listGEPFolders[0]
-        animatsimdir = os.path.split(gepdataFold)[0]
+        gepdataFold = gepdataFold.replace('\\', '/')
+        start_gepFolder = gepdataFold.find(rootfolder)+lenrootfld
+        self.start_gepFolder = start_gepFolder
+        rel_gepfataFold = gepdataFold[self.start_gepFolder:]
+        animatsimdir = os.path.split(self.rootdir + rel_gepfataFold)[0]
+        
         self.animatsimdir = animatsimdir
         if getInfoAsim is True:
             # ============ Get informations from the .asim file
@@ -6338,6 +6355,9 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             # lst_lenTab = [len(tab_bhv)]
             lst_lenTab = []
             for idx, gepdataFold in enumerate(self.listGEPFolders):
+                gepdataFold = gepdataFold.replace('\\', '/')
+                rel_gepfataFold = gepdataFold[self.start_gepFolder:]
+                gepdataFold = self.rootdir + rel_gepfataFold
                 res = self.build_bhv_par_df(idx, gepdataFold, parName, bhvName,
                                             concatpairs, concatbehavs,
                                             lst_lenTab,
@@ -6363,6 +6383,13 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                     with open(mltpleDirPath+'/dic_folds.json') as f:
                         dic_folder_st = json.load(f)
                         dic_folder = change_key_str_to_int(dic_folder_st)
+                        print(dic_folder)
+                        for ky in dic_folder.keys():
+                            gepdataFold = dic_folder[ky]
+                            rel_gepfataFold=gepdataFold[self.start_gepFolder:]
+                            gepdatafold = self.rootdir + rel_gepfataFold
+                            dic_folder[ky] = gepdatafold
+                        print(dic_folder)    
                         if self.dic_df_origine == dic_folder:
                             print("already created for these folders")
                             folderExist = True
@@ -6394,7 +6421,11 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                           "listFolders.txt", self.graph_path)
 
         else:   # only one_expe
-            listOfSearchedDir = [self.listGEPFolders[0]]
+            gepdataFold = self.listGEPFolders[0]
+            gepdataFold = gepdataFold.replace('\\', '/')
+            rel_gepfataFold = gepdataFold[self.start_gepFolder:]
+            gepdataFold = self.rootdir + rel_gepfataFold            
+            listOfSearchedDir = [gepdataFold]
             lst_lenTab = [len(tab_bhv)]
             onlyfiles = [f for f in listdir(listOfSearchedDir[0])
                          if isfile(join(listOfSearchedDir[0], f))
@@ -6417,7 +6448,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 self.prevListGEPFiles = files[0][0]["selectedFiles"]
             elif len(self.listGEPFiles) == 1:
                 self.prevListGEPFiles = ["GEPdata00.par"]
-            gepdataFold = self.listGEPFolders[0]
+            
             for idx, gepdataFile in enumerate(self.prevListGEPFiles):
                 parName = gepdataFile[:-4] + ".txt"
                 bhvName = gepdataFile[:-4] + "bhv.txt"
@@ -6461,14 +6492,16 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             print(lst_valid)
             self.lst_valid = lst_valid
                 
-        # ========  recreates the index of the global df   =========
+        # =============  recreates the index of the global df   ===============
         self.df_bhvremain.index = self.lst_valid
         self.df_parremain.index = self.lst_valid
         self.df_bhvremain = self.df_bhvremain.astype({"origine": int})
         self.df_parremain = self.df_parremain.astype({"origine": int})
+        # === adds a new column "orig_rg" for the ranks in each source df ===
         self.df_bhvremain.loc[:, "orig_rg"] = self.df_bhvremain["rgserie"]
-        self.df_bhvremain.loc[:, "rgserie"] = self.df_bhvremain.index
         self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
+        # === writes the new global index in the column "rgserie"
+        self.df_bhvremain.loc[:, "rgserie"] = self.df_bhvremain.index
         self.df_parremain.loc[:, "rgserie"] = self.df_parremain.index
         
         self.df_parremain.index = np.arange(len(self.df_parremain))
@@ -7500,21 +7533,22 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                     plt.legend(handles, labels, loc=(1.08, 0))
                     plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
                 else:
+                    nbcol = int(nbcolors/2)
                     # ------------ 1st set of legend elements  ----------------
-                    labels1 = labels[:nbcolors/2]
+                    labels1 = labels[:nbcol]
                     handles1 = [plt.plot([], [], color=color_map[labels[i]],
                                 ls="", marker='o',
-                                markersize=6)[0] for i in range(nbcolors/2)]
+                                markersize=6)[0] for i in range(nbcol)]
                     # In legend order is that of classes (revert order)
                     first_legend = plt.legend(handles1, labels1,
                                               loc=(1.04, 0.0))
                     plt.gca().add_artist(first_legend)
                     plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
                     # ------------ 2nd set of legend elements  ----------------
-                    labels2 = labels[nbcolors/2:]
+                    labels2 = labels[nbcol:]
                     handles2 = [plt.plot([], [], color=color_map[labels[i]],
                                 ls="", marker='o',
-                                markersize=6)[0] for i in range(nbcolors/2,
+                                markersize=6)[0] for i in range(nbcol,
                                                                 nbcolors)]
                     # In legend order is that of classes (revert order)
                     second_legend = plt.legend(handles2, labels2,
@@ -7714,6 +7748,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             """ 
             ==============================================================
             """
+            """
             lst_valid = []
             lst_rgserie = []
             sum_precedingTab = 0
@@ -7743,11 +7778,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.df_bhvremain.loc[:, "rgserie"] = self.lst_valid
             #self.df_parremain.loc[:, "orig_rg"] = self.df_parremain["rgserie"]
             self.df_parremain.loc[:, "rgserie"] = self.lst_valid
+            """
             lst_valid_chart = list(self.chart_glob_df["rgserie"])
-            
-            self.df_parremain_OK = self.df_parremain["rgserie"].isin(lst_valid_chart)
+
+            self.df_parremain_OK = \
+                self.df_parremain["rgserie"].isin(lst_valid_chart)
             self.df_parremain = self.df_parremain[self.df_parremain_OK]
-            self.df_bhvremain_OK = self.df_bhvremain["rgserie"].isin(lst_valid_chart)          
+            self.df_bhvremain_OK = \
+                self.df_bhvremain["rgserie"].isin(lst_valid_chart)          
             self.df_bhvremain = self.df_bhvremain[self.df_bhvremain_OK]
             index = list(self.chart_glob_df["rg_in_whole"])
             #self.df_parremain.index = np.arange(len(self.df_parremain))
