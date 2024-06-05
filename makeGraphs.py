@@ -264,12 +264,15 @@ Modified May 17, 2024 (D. Cattaert):
     entitled "orgi-rg" (in construct_df_par_bhv_remains() method)
     in and self.df_parremain already got the column
     
-    In order to allow analysis being made from a different computer, with path
+    In order to allow analysis from a different computer, with path
     different from the one used to build the multipleExpeGraph-x folders, the
     method "construct_df_par_bhv_remains()" has been modified so that it works
-    with relative folder addresses established from self.directory
+    with relative folder addresses established from self.ensembleRunDir
     annimatsimdir is rebuilt to make it compatible with the computer paths
-    
+Modified June 05, 2024 (D. Cattaert):
+    new_run_dir is now created in chartgraph_selected_bhv() method
+    This allows the par and bhv csv files of selected behaviors to be saved in
+    new_run_dir (run-0, run-1 etc.)
 """
 import os
 from os import listdir
@@ -5266,6 +5269,21 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         msg = "Save restrained dataframes with graphs?"
         msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
         ret = MessageBox(None, msg, msg2, 3)
+
+        animatsimdir = self.GUI_Gr_obj.animatsimdir
+        print(animatsimdir)
+        graph_path = self.GUI_Gr_obj.graph_path
+        graph_path = graph_path.replace("\\", "/")
+        listdir = os.listdir(graph_path)
+        lst_subdir = [sd for sd in listdir
+                      if os.path.isdir(graph_path + "/" + sd)]
+        ix = 0
+        for sdir in lst_subdir:
+            if sdir[:4] == "run-":
+                ix += 1
+        newrundirname = "run" + '-{0:d}'.format(ix)
+        new_run_dir = graph_path + "/" + newrundirname
+        
         print(ret)
         if ret == 2:
             print("ESC")
@@ -5274,6 +5292,10 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         elif ret == 7:
             print("NO: --> Do Not Save restrained dataframes")
         if ret == 6:
+            self.new_run_dir = new_run_dir
+            self.GUI_Gr_obj.new_run_dir = new_run_dir
+            if not os.path.exists(new_run_dir):
+                os.makedirs(new_run_dir)
             file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
             self.run_selected_bhv(file_name)
 
@@ -5324,6 +5346,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         # ======== create new_run_dir folder with incremental name ============
         animatsimdir = self.GUI_Gr_obj.animatsimdir
         print(animatsimdir)
+        """
         graph_path = self.GUI_Gr_obj.graph_path
         graph_path = graph_path.replace("\\", "/")
         listdir = os.listdir(graph_path)
@@ -5335,8 +5358,11 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
                 ix += 1
         newrundirname = "run" + '-{0:d}'.format(ix)
         new_run_dir = graph_path + "/" + newrundirname
+        self.GUI_Gr_obj.new_run_dir = new_run_dir
         if not os.path.exists(new_run_dir):
             os.makedirs(new_run_dir)
+        """
+        new_run_dir = self.new_run_dir
         ficname = "file_name.txt"
         complete_fname = new_run_dir + "/" + ficname
         with open(complete_fname, 'w') as fich:
@@ -5364,6 +5390,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         gepdatadir = new_run_dir + "/GEPdata"
         if not os.path.exists(gepdatadir):
             os.makedirs(gepdatadir)
+        # ===================  run selected paramsets ====================
         self.GUI_Gr_obj.mafen.run_selected_param()
         """
         self=MyWin.graph_settings
@@ -6658,6 +6685,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             graph_path = self.graph_path
             if not os.path.exists(graph_path):
                 os.makedirs(graph_path)
+            new_run_dir = self.new_run_dir
             if self.bhv_names[self.behav_col[0]] == 'endangle':
                 nomx = "amp"
             if self.bhv_names[self.behav_col[1]] == 'dur_mvt2':
@@ -6685,14 +6713,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 print("NO: --> Do Not Save restrained dataframes")
             if ret == 6:
                 file_name = "{}_bhv{}".format(str_bhvSet, NbSelectedBhv)
-                # save_df_to_xls(self.mafen.source_df_bhvremain, graph_path,
-                #                file_name, typ='bhv')
-                save_df_to_csv(self.mafen.source_df_bhvremain, graph_path,
+                save_df_to_csv(self.mafen.source_df_bhvremain, new_run_dir,
                                file_name, typ='bhv')
                 file_name = "{}_par{}".format(str_bhvSet, NbSelectedBhv)
-                # save_df_to_xls(self.mafen.source_df_parremain, graph_path,
-                #               file_name, typ='par')
-                save_df_to_csv(self.mafen.source_df_parremain, graph_path,
+                save_df_to_csv(self.mafen.source_df_parremain, new_run_dir,
                                file_name, typ='par')
         return file_name
 
@@ -7250,6 +7274,95 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         save_eps_pdf(graph_path, tit, sstit)
         plt.show()
 
+
+    def plot_color_scale(self, factor, classes, color_map):
+        if factor is not None:
+            labels = copy.deepcopy(classes)
+            labels.sort(reverse=True)
+            nbcolors = len(classes)
+            if nbcolors < 50:
+                handles = [plt.plot([], [], color=color_map[labels[i]],
+                           ls="", marker='o',
+                           markersize=6)[0] for i in range(nbcolors)]
+                # In legend order is that of classes (revert order)
+                plt.legend(handles, labels, loc=(1.02, 0))
+                plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+            else:
+                # ------------ 1st set of legend elements  ----------------
+                labels1 = labels[:nbcolors/2]
+                handles1 = [plt.plot([], [], color=color_map[labels[i]],
+                            ls="", marker='o',
+                            markersize=6)[0] for i in range(nbcolors/2)]
+                # In legend order is that of classes (revert order)
+                first_legend = plt.legend(handles1, labels1, loc=(1.02, 0))
+                plt.gca().add_artist(first_legend)
+                plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+                # ------------ 2nd set of legend elements  ----------------
+                labels2 = labels[nbcolors/2:]
+                handles2 = [plt.plot([], [], color=color_map[labels[i]],
+                            ls="", marker='o',
+                            markersize=6)[0] for i in range(nbcolors/2,
+                                                            nbcolors)]
+                # In legend order is that of classes (revert order)
+                second_legend = plt.legend(handles2, labels2,
+                                           loc=(1.25, 0))
+                plt.gca().add_artist(second_legend)
+                plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+
+
+    def do_single(self, listX, listY, glob_df, idy, y, ysize, setY,
+                  colors, palette, classes, color_map,
+                  titre, tit, titre_2lines, ss_titre, factor):
+        
+        figure, (ax1, ax2, ax3) = \
+            plt.subplots(nrows=1, ncols=3, figsize=(8, 3), dpi=100,
+                         # sharex='col',
+                         sharey='row'
+                         )
+        # x = np.array(df_glob.loc[:, listX[0]])
+        if factor is not None:
+            ax1.scatter(np.array(glob_df.loc[:, listX[0]]), y,
+                        alpha=0.70, s=10, c=colors, linewidth=0)
+        else:
+            ax1.plot(np.array(glob_df.loc[:, listX[0]]), y,
+                     color=palette[idy],
+                     marker='o', markersize=1, linewidth=0)
+        ax1.set_xlabel(listX[0], labelpad=18, fontsize=10)
+        ax1.set_ylabel(setY, labelpad=18, fontsize=10)
+        if len(listX) > 1:
+            if factor is not None:
+                ax2.scatter(np.array(glob_df.loc[:, listX[1]]), y,
+                            alpha=0.70, s=10, c=colors, linewidth=0)
+            else:
+                ax2.plot(np.array(glob_df.loc[:, listX[1]]), y,
+                         color=palette[idy],
+                         marker='o', markersize=1, linewidth=0)
+            ax2.set_xlabel(listX[1], labelpad=18, fontsize=10)
+            # ax2.set_ylabel(setY, labelpad=18, fontsize=14)
+        elif len(listX) > 2:
+            if factor is not None:
+                ax3.scatter(np.array(glob_df.loc[:, listX[2]]), y,
+                            alpha=0.70, s=10, c=colors, linewidth=0)
+            else:
+                ax3.plot(np.array(glob_df.loc[:, listX[2]]), y,
+                         color=palette[idy],
+                         marker='o', markersize=1, linewidth=0)
+            ax3.set_xlabel(listX[2], labelpad=18, fontsize=10)
+            # ax3.set_ylabel(setY, labelpad=18, fontsize=14) 
+        plt.suptitle(titre_2lines, fontsize=11, y=1.05-ysize*0.005)
+        self.plot_color_scale(factor, classes, color_map)
+        figure.text(0.04, 0.5, setY, va='center', rotation='vertical')
+        sstit = ss_titre_to_txt(ss_titre)
+        """
+        plt.savefig(r'{0}/{1} {2}.eps'.format(graph_path, tit, sstit),
+                    bbox_inches='tight')
+        plt.savefig(r'{0}/{1} {2}.pdf'.format(graph_path, tit, sstit),
+                    bbox_inches='tight')
+        """
+        save_eps_pdf(self.graph_path, tit, sstit)
+        plt.show()
+
+
     def make_graph_lsty_lstx(self, df_glob, listY, listX,
                              titre="", ss_titre="", factor=None):
         """
@@ -7279,55 +7392,37 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
         # model_dir = self.ensembleRunDir
         graph_path = self. graph_path
-        nrows = len(listX) // 3
-        if nrows < len(listX) / 3:
-            nrows += 1
-        # ncols= min(len(listX), 3)
         ncols = 3
+        nrows = len(listX) // ncols
+        if nrows < len(listX) / ncols:
+            nrows += 1
+        rowperpage = 3
+        nb_pages = nrows // rowperpage
+        if nb_pages * rowperpage < nrows:
+            nb_pages += 1
         print("listY = ", listY)
         for idy, setY in enumerate(listY):
             print(setY, end=" ")
             y = glob_df[setY].values
             print(y)
+            if setY.find(".") == -1:
+                setY_short = setY
+            else:
+                setY_short = setY[:setY.find(".")]
+            tit = "{}-{}-col={}".format(titre, setY_short, factor)
+            titre_2lines = "{}\n{}".format(tit, ss_titre)
 
             if nrows == 1:
-                figure, (ax1, ax2, ax3) = \
-                    plt.subplots(nrows=1, ncols=3, figsize=(8, 3), dpi=100,
-                                 # sharex='col',
-                                 sharey='row'
-                                 )
-                # x = np.array(df_glob.loc[:, listX[0]])
-                if factor is not None:
-                    ax1.scatter(np.array(glob_df.loc[:, listX[0]]), y,
-                                alpha=0.70, s=10, c=colors, linewidth=0)
-                else:
-                    ax1.plot(np.array(glob_df.loc[:, listX[0]]), y,
-                             color=palette[idy],
-                             marker='o', markersize=1, linewidth=0)
-                ax1.set_xlabel(listX[0], labelpad=18, fontsize=10)
-                ax1.set_ylabel(setY, labelpad=18, fontsize=10)
-                if len(listX) > 1:
-                    if factor is not None:
-                        ax2.scatter(np.array(glob_df.loc[:, listX[1]]), y,
-                                    alpha=0.70, s=10, c=colors, linewidth=0)
-                    else:
-                        ax2.plot(np.array(glob_df.loc[:, listX[1]]), y,
-                                 color=palette[idy],
-                                 marker='o', markersize=1, linewidth=0)
-                    ax2.set_xlabel(listX[1], labelpad=18, fontsize=10)
-                    # ax2.set_ylabel(setY, labelpad=18, fontsize=14)
-                elif len(listX) > 2:
-                    if factor is not None:
-                        ax3.scatter(np.array(glob_df.loc[:, listX[2]]), y,
-                                    alpha=0.70, s=10, c=colors, linewidth=0)
-                    else:
-                        ax3.plot(np.array(glob_df.loc[:, listX[2]]), y,
-                                 color=palette[idy],
-                                 marker='o', markersize=1, linewidth=0)
-                    ax3.set_xlabel(listX[2], labelpad=18, fontsize=10)
-                    # ax3.set_ylabel(setY, labelpad=18, fontsize=14)
+                ysize = len(listX) * 2
+                self.do_single(listX, listY, glob_df, idy, y, ysize, setY,
+                               colors, palette, classes, color_map,
+                               titre, tit, titre_2lines, ss_titre, factor)
 
             else:
+                for page in range(nb_pages):
+                    print(page)
+# TODO     to be continued...
+                
                 figure, ax = plt.subplots(nrows=nrows, ncols=ncols,
                                           figsize=(8, 9), dpi=100,
                                           gridspec_kw={'hspace': 0.3,
@@ -7363,57 +7458,26 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                     if row == lastrow:
                         ax[row, col].tick_params(axis='x', rotation=70)
             
-            if setY.find(".") == -1:
-                setY_short = setY
-            else:
-                setY_short = setY[:setY.find(".")]
-            tit = "{}-{}-col={}".format(titre, setY_short, factor)
-            titre_2lines = "{}\n{}".format(tit, ss_titre)
-            ysize = len(listX) * 2
-            plt.suptitle(titre_2lines, fontsize=11, y=1.05-ysize*0.005)
-
-            if factor is not None:
-                labels = copy.deepcopy(classes)
-                labels.sort(reverse=True)
-                nbcolors = len(classes)
-                if nbcolors < 50:
-                    handles = [plt.plot([], [], color=color_map[labels[i]],
-                               ls="", marker='o',
-                               markersize=6)[0] for i in range(nbcolors)]
-                    # In legend order is that of classes (revert order)
-                    plt.legend(handles, labels, loc=(1.02, 0))
-                    plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+                if setY.find(".") == -1:
+                    setY_short = setY
                 else:
-                    # ------------ 1st set of legend elements  ----------------
-                    labels1 = labels[:nbcolors/2]
-                    handles1 = [plt.plot([], [], color=color_map[labels[i]],
-                                ls="", marker='o',
-                                markersize=6)[0] for i in range(nbcolors/2)]
-                    # In legend order is that of classes (revert order)
-                    first_legend = plt.legend(handles1, labels1, loc=(1.02, 0))
-                    plt.gca().add_artist(first_legend)
-                    plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
-                    # ------------ 2nd set of legend elements  ----------------
-                    labels2 = labels[nbcolors/2:]
-                    handles2 = [plt.plot([], [], color=color_map[labels[i]],
-                                ls="", marker='o',
-                                markersize=6)[0] for i in range(nbcolors/2,
-                                                                nbcolors)]
-                    # In legend order is that of classes (revert order)
-                    second_legend = plt.legend(handles2, labels2,
-                                               loc=(1.25, 0))
-                    plt.gca().add_artist(second_legend)
-                    plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
-            figure.text(0.04, 0.5, setY, va='center', rotation='vertical')
-            sstit = ss_titre_to_txt(ss_titre)
-            """
-            plt.savefig(r'{0}/{1} {2}.eps'.format(graph_path, tit, sstit),
-                        bbox_inches='tight')
-            plt.savefig(r'{0}/{1} {2}.pdf'.format(graph_path, tit, sstit),
-                        bbox_inches='tight')
-            """
-            save_eps_pdf(graph_path, tit, sstit)
-            plt.show()
+                    setY_short = setY[:setY.find(".")]
+                tit = "{}-{}-col={}".format(titre, setY_short, factor)
+                titre_2lines = "{}\n{}".format(tit, ss_titre)
+                ysize = len(listX) * 2
+                plt.suptitle(titre_2lines, fontsize=11, y=1.05-ysize*0.005)
+
+                self.plot_color_scale(factor, classes, color_map)
+                figure.text(0.04, 0.5, setY, va='center', rotation='vertical')
+                sstit = ss_titre_to_txt(ss_titre)
+                """
+                plt.savefig(r'{0}/{1} {2}.eps'.format(graph_path, tit, sstit),
+                            bbox_inches='tight')
+                plt.savefig(r'{0}/{1} {2}.pdf'.format(graph_path, tit, sstit),
+                            bbox_inches='tight')
+                """
+                save_eps_pdf(graph_path, tit, sstit)
+                plt.show()
 
     def make_scatter_matrix_df_2DplusColor(self, df_glob, selected_col,
                                            graph_name, ss_titre, factor):
