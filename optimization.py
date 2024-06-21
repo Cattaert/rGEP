@@ -81,6 +81,15 @@ Modified February 01, 2024 (D. Cattaert):
                             range(4-int((len(synapseName)+1)/8))
     in affichConnexionsFR() range(3-(len(synapseName[syn])+1)/8) replaced by
                             range(3-int((len(synapseName[syn])+1)/8))
+Modified June 06, 2024 (D.Cattaert):
+    TestQuality changed to take into account:
+    - New way to calculate Coactivity,
+    - Limitation for amplitude
+    - Normalization of the movement:
+        new procedure: NormMeanSquarreErrorTemplate()
+Modified June 20, 2024 (D. Cattaert):
+    NormMeanSquarreErrorTemplate() procedure normializes to a 60° movement for
+    calculation of MSE. (It was 1° in previous version).
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -775,7 +784,7 @@ def affiche_liste(liste):
     txt = "["
     for idx, behavElt in enumerate(liste):
         if idx < len(liste) - 1:
-            txt += "{:4.3f}    ".format(float(behavElt))
+            txt += "{:4.3f} ".format(float(behavElt))
         else:
             txt += "{:4.3f}".format(float(behavElt))
     print(txt, "]\t", end=' ')
@@ -1824,9 +1833,9 @@ def tablo(directory, filename):
         This function return an array which contains the values from a txt file
     """
     tabfinal = []
-    pathname = os.path.join(directory, filename)
-    if os.path.exists(pathname):
-        f = open(pathname, 'r')
+    completename = os.path.join(directory, filename)
+    if os.path.exists(completename):
+        f = open(completename, 'r')
         i = 0
         while 1:
             tab1 = []
@@ -1845,7 +1854,7 @@ def tablo(directory, filename):
                 i = i+1
         f.close()
     else:
-        print(pathname, "does not exist!!!")
+        print(completename, "does not exist!!!")
     return tabfinal
 
 
@@ -2475,6 +2484,68 @@ def MeanSquarreError(data, val):
     return mse
 
 
+"""
+# Following lines were used to create "data_example.txt"
+# in  "C:/Labo/Simulations/!Python3_scripts/GEP
+#           /AnimatLab_simulations-DC_py35/z_data&template" folder
+pathname = "C:/Labo/Simulations/!Python3_scripts/GEP" \
+            + "/AnimatLab_simulations-DC_py35/z_data&template"
+filename = "data_example_overshoot.txt"
+completename = pathname + "/" + filename
+s = ""
+f = open(completename, 'w')
+for i in range(len(data)-1):
+    s = s + str(data[i]) + '\t'
+s = s + str(data[i+1]) + '\n'
+f.write(s)
+f.close()
+"""
+
+
+def load_data(completename):
+    tmp = []
+    f = open(completename, 'r')
+    while 1:
+        txt = f.readline()
+        if txt == '':
+            break
+        else:
+            strTab = getValuesFromText((txt))
+            for k in range(len(strTab)):
+                tmp.append(float(strTab[k]))
+    return tmp
+
+"""
+# Following lines were used to create "template_example.txt"
+# in  "C:/!Labo/Simulations/!Python3_scripts/GEP
+#                               /AnimatLab_simulations-DC_py35/Temp" folder
+pathname = "C:/!Labo/Simulations/!Python3_scripts/GEP" \
+            + "/AnimatLab_simulations-DC_py35/z_data&template"
+filename = "template_example_for overshoot.txt"
+completename = pathname + "/" + filename
+f = open(completename, 'w')
+for i in range(len(template)-1):
+    for j in range(len(template[i])-1):
+        f.write(str(template[i][j]) + '\t')
+    f.write(str(template[i][j+1]) + '\n')
+f.close()
+
+pathname = "C:/Labo/Simulations/!Python3_scripts/GEP" \
+            + "/AnimatLab_simulations-DC_py35/z_data&template"
+filename = "template_example_for overshoot.txt"
+template = tablo(pathname, filename)
+template = [[float(x), float(y), float(z)] for [x,y,z] in template ]
+
+data_filename = "data_example_overshoot.txt"
+completename = pathname + "/" + data_filename
+data = load_data(completename)
+
+mvtfirstline = 50
+lineStart = 350
+lineEnd = 850
+lag = 13
+"""
+
 def MeanSquarreErrorTemplate(data, template, mvtfirstline,
                              lineStart, lineEnd, lag):
     """
@@ -2494,6 +2565,32 @@ def MeanSquarreErrorTemplate(data, template, mvtfirstline,
     # use (n-1) if data are samples of a larger population
     return mse
 
+def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
+                                 lineStart, lineEnd, lag):
+    """
+    calculate the MSE between normalized mvtdata (that starts at line
+    mvtfirstline) and template that starts at 0
+    """
+    # ampl = max(data) - data[mvtfirstline]
+    ampl = data[lineEnd] - data[mvtfirstline]
+    if ampl < 1:
+        mse=1000
+        return mse
+    normdata = [z*50/ampl for z in data]
+    normtemplate = [[x, y, z*50/ampl] for [x, y, z] in template]
+    if len(data) == 0:
+        return 0
+    n = 0
+    Sum_sqr = 0
+    for x in range(lineStart, lineEnd):
+        n = n + 1
+        Sum_sqr += (normdata[x] - normtemplate[x+lag+mvtfirstline][2])**2
+    mse = Sum_sqr/n
+    # mse = mse*1000  # to keep compatibility with previous mse calculation
+    # use n instead of (n-1) if want to compute the exact
+    # variance of the given data
+    # use (n-1) if data are samples of a larger population
+    return mse
 
 def chargeBestFeatures(folders, filename, defaultval, nbpar):
     strTab = []
@@ -2743,19 +2840,23 @@ def writeTitres(folders, pre, allPhases, tab_targets, seriesParam):
 ###########################################################################
 def coactivityFR(tabMN0, tabMN1, lineStart, lineEnd, coactivityFactor):
     coact = 0.
+    actMN0, actMN1 = 0., 0.
     if lineStart == lineEnd:
         coact = tabMN0[lineStart] * tabMN1[lineStart]
     else:
         for x in range(lineStart, lineEnd):
             coact += tabMN0[x] * tabMN1[x]
+            actMN0 += tabMN0[x]
+            actMN1 += tabMN1[x]
         coact = coact/(lineEnd-lineStart)   # coact in range [0, 1]
     coactpenality = coact * coactivityFactor
-    return [coactpenality, coact]
+    return [coactpenality, coact, actMN0, actMN1]
 
 
 def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
                  activThr, coactivityFactor):
     coact = 0.
+    actMN0, actMN1 = 0., 0.
     if lineStart == lineEnd:
         MN0 = tabMN0[lineStart]
         if MN0 <= activThr:
@@ -2785,12 +2886,15 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
             normMN0 = MN0/(0.030)  # /0.03  => normalize in range [0, 1]
             normMN1 = MN1/(0.030)  # /0.03  => normalize in range [0, 1]
             coact += normMN0 * normMN1
+            actMN0 += normMN0
+            actMN1 += normMN1
         coact = coact/(lineEnd-lineStart)  # mean coactivation
     coactpenality = coact * coactivityFactor
-    return [coactpenality, coact]
+    return [coactpenality, coact, actMN0, actMN1]
 
 
-def testquality(optSet, tab, template, msetyp, affich=1):
+def testquality(optSet, tab, template, msetyp,
+                affich=1, other_constraints = {}):
     """
     Function testquality
         In : optSet :The object
@@ -2807,6 +2911,9 @@ def testquality(optSet, tab, template, msetyp, affich=1):
     at two time intervals: [lineStart1, lineEnd1] and [lineStart2, lineEnd2]
     stored in optSet object.
     """
+    other_constraints = {}
+    other_constraints["max_endangle"] = 115
+    
     max_lag = 100
     # mvt = tab[:][optSet.mvtcolumn]
     mvt = extractCol(tab, optSet.mvtcolumn)
@@ -2821,9 +2928,13 @@ def testquality(optSet, tab, template, msetyp, affich=1):
     lag = -max_lag
     dmse = 0
     msetab = []
-    mse = MeanSquarreErrorTemplate(mvt, template, mvtfirstline,
-                                   optSet.lineStart+max_lag,
-                                   optSet.lineEnd-max_lag, lag)
+    mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
+                                       optSet.lineStart+max_lag,
+                                       optSet.lineEnd-max_lag, lag)
+    if other_constraints != {}:
+        if "max_endangle" in other_constraints.keys():
+            if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
+                mse += 500
     # print(mse, end=' ')
     msetab.append(mse)
     prevmse = mse
@@ -2834,9 +2945,13 @@ def testquality(optSet, tab, template, msetyp, affich=1):
     while (dmse <= 0) and lag < max_lag:
         lag += 1
         # We compute the mse with the new lag
-        mse = MeanSquarreErrorTemplate(mvt, template, mvtfirstline,
-                                       optSet.lineStart+max_lag,
-                                       optSet.lineEnd-max_lag, lag)
+        mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
+                                           optSet.lineStart+max_lag,
+                                           optSet.lineEnd-max_lag, lag)
+        if other_constraints != {}:
+            if "max_endangle" in other_constraints.keys():
+                if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
+                    mse += 500
         # print(mse, end=' ')
         # if lag == -30:
         #     print(comment, mse, end=' ')
@@ -2850,41 +2965,44 @@ def testquality(optSet, tab, template, msetyp, affich=1):
         if lag % 2 == 0:
             slide += "/"
     mse = min(msetab)
-    if affich:
-        if msetyp != "":
-            print(msetyp, end=' ')
-        else:
-            print("mse", end=' ')
-        affiche_liste(msetab[-3:])
-        print(slide, end=' ')
-        print("lag:", lag * float(optSet.collectInterval), " s", end=' ')
-        optSet.templateLag = lag * float(optSet.collectInterval)
-        # print(" --> min mse = ", mse, coactpenality, coact, end=' ')
-        # print(" --> min mse = ", mse, end=' ')
     # cost function: coactivation of MN
+    line_deb_calc_coact2 = optSet.lineEnd - 1*optSet.rate   # mvt last second
     if min(tabMN0) < 0:
         res1 = coactivityVN(tabMN0, tabMN1, optSet.lineStart, optSet.lineEnd1,
                             optSet.activThr,
                             optSet.coactivityFactor*optSet.xCoactPenality1)
-        res2 = coactivityVN(tabMN0, tabMN1, optSet.lineStart2, optSet.lineEnd,
+        res2 = coactivityVN(tabMN0, tabMN1,
+                            line_deb_calc_coact2, optSet.lineEnd,
                             optSet.activThr,
                             optSet.coactivityFactor*optSet.xCoactPenality2)
     else:
         res1 = coactivityFR(tabMN0, tabMN1, optSet.lineStart, optSet.lineEnd1,
                             optSet.coactivityFactor*optSet.xCoactPenality1)
-        res2 = coactivityFR(tabMN0, tabMN1, optSet.lineStart2, optSet.lineEnd,
+        res2 = coactivityFR(tabMN0, tabMN1,
+                            line_deb_calc_coact2, optSet.lineEnd,
                             optSet.coactivityFactor*optSet.xCoactPenality2)
-
     if affich:
-        print("coactpenality1:", res1[0], end=' ')
-        print("coactpenality2:", res2[0])
+        print(slide, end=' ')
+        print("lag:", lag * float(optSet.collectInterval), " s")
+        if msetyp != "":
+            print(msetyp, end=' ')
+        else:
+            print("mse", end=' ')
+        affiche_liste(msetab[-3:])
+        print("coactP1:", res1[0], end=' ')
+        print("coactP2:", res2[0])
+        
+
+        optSet.templateLag = lag * float(optSet.collectInterval)
+        # print(" --> min mse = ", mse, coactpenality, coact, end=' ')
+        # print(" --> min mse = ", mse, end=' ')
     coactpenality = res1[0] + res2[0]
     coact = res1[1] + res2[1]
     """
     if proc_name == "VSCD":
-        mse = MeanSquarreErrorTemplate(mvt, template, mvtfirstline,
-                                       optSet.lineStart+20,
-                                       optSet.lineEnd-20, 0)
+        mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
+                                           optSet.lineStart+20,
+                                           optSet.lineEnd-20, 0)
     """
     return [mse, coactpenality, coact, res1, res2]
 
@@ -3202,9 +3320,11 @@ def get_dur_mvt(optSet, mvt, line_startMvt2, max_speed, nbPtsMvt2_T,
         min_delta = min(spd_delta)
         idx = spd_delta.index(min_delta)
         nbPts = nbpoints[idx]
-        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(spd_T[idx], spd_r[idx]), end=' ')
+        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(spd_T[idx], spd_r[idx]),
+              end=' ')
     else:
-        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(speed_T, speed_r), end=' ')
+        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(speed_T, speed_r),
+              end=' ')
     return nbPts
 
 
@@ -3255,7 +3375,7 @@ def searchStartMvt2(mvt, time, line_startMvt2, rate):
 
 
 # TODO : to be continued
-def getbehavElts(optSet, tab, affich=0, interval=1./6):
+def getbehavElts(optSet, tab, affich=0, interval=1./6, other_constraints={}):
     """
     Function getbehavElts
         In : optSet : The object
@@ -3301,13 +3421,16 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6):
         res = getmaxspeed(mvt, line_startMvt2, optSet.rate)
         # ===============================================================
         max_speed, rg_max_speed, rg_end_mvt2 = res
-        endangle = mvt[rg_end_mvt2]
+        
+        # endangle = mvt[rg_end_mvt2]
+        endangle = mvt[-1] # takes the final value of mvt
         # print("max_speed:", max_speed, "   rg_end_mvt2:", rg_end_mvt2)
         # prevLineStart2 = optSet.lineStart2
     else:
         rg_end_mvt2 = endmvt2_idx
         max_speed = 0
-        endangle = mvt[rg_end_mvt2]
+        #☻ endangle = mvt[rg_end_mvt2]
+        endangle = mvt[-1] # takes the final value of mvt
         # prevLineStart2 = optSet.lineStart2
 
     # if endseq of mvt out of record endseq...
@@ -3368,7 +3491,10 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6):
                                  optSet.endMvt1, startangle,
                                  startMvt2, endMvt2T,
                                  endangle, optSet.endPos2)
-    quality = testquality(optSet, tab, tmplate, "varmse", affich=affich)
+    # =====================================================================
+    quality = testquality(optSet, tab, tmplate, "varmse", affich=affich,
+                          other_constraints=other_constraints)
+    # =====================================================================
     optSet.varmse_tmplate = tmplate
     optSet.time_midMvt2T = time_midMvt2T
     optSet.nbPts_mvt2T = nbPts_mvt2T
@@ -3377,6 +3503,10 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6):
     optSet.varmse_startMvt2 = startMvt2
     optSet.varmse_lineStart2 = lineStart2
     duration = endMvt2T - startMvt2
+    if endMvt2T > optSet.endPos2 - 2:
+        print("movement end = {} => rejected; varmse = 100".format(endMvt2T))
+        mse = 100
+        
     # ===============================================================
     """
     # mse = quality[0]  # Modified 2021 june, 17.
@@ -3834,14 +3964,19 @@ def runSimMvt(folders, model, optSet, projMan,
 
     [simSet, vals] = normToRealVal(x, optSet, simSet, stimParName,
                                    synParName, synNSParName, synFRParName)
+    """
     if affiche == 1:
         print(simSet.samplePts)
+    """
     projMan.make_asims(simSet)
     projMan.run(cores=-1)
     tab = readTabloTxt(folders.animatlab_result_dir,
                        findTxtFileName(model, optSet, "", 1))
-    quality = testquality(optSet, tab, optSet.template, "")
-    behavElts = getbehavElts(optSet, tab)[:-2]
+    quality = testquality(optSet, tab, optSet.template, "",
+                          other_constraints={'max_endangle': 115})
+    # behavElts = getbehavElts(optSet, tab)[:-2]
+    behavElts = getbehavElts(optSet, tab,
+                             other_constraints={'max_endangle': 115})
     mse, coactpenality, coact = quality[0], quality[1], quality[2]
     # destdir = folders.animatlab_rootFolder + "ChartResultFiles/"
     err = mse+coactpenality
@@ -3922,7 +4057,7 @@ def prepareTxtOutputFiles(optSet):
         len(optSet.synNSParName)
     affichParamLimits(optSet.synFRParName, optSet.reallower,
                       optSet.realupper, optSet.realx0, deb)
-    print
+    print()
     deb = 0
     affichParamLimits(optSet.stimParName, optSet.lower,
                       optSet.upper, optSet.x0, deb)
@@ -4826,7 +4961,7 @@ def runTrials(win, paramserie, paramserieSlices,
                 the method exec_rand_param()  that calls:
         the function find_aim_behav() of the class MaFenetre, that calls:
             aim_behav_extend()
-            aim_behav_fill()    These thre functions are in gep_tl_bix.py
+            aim_behav_fill()    These thre functions are in gep_tool_box.py
         the method do_rand_param()    that also calls
             the method exec_rand_param()
         and in the method saves_seeds() to re-run the selected behav parameters
@@ -4977,15 +5112,22 @@ def runTrials(win, paramserie, paramserieSlices,
                             findTxtFileName(model, optSet, pre, idx+1))
             lst_tab.append(tab)
             quality = testquality(optSet, tab, optSet.template, "",
-                                  affich=print_adapt_tmplate_proc_MSE)
+                                  affich=print_adapt_tmplate_proc_MSE,
+                                  other_constraints = {'max_endangle': 115})
             mse, coactpenality, coact = quality[0], quality[1], quality[2]
             resbehav = getbehavElts(optSet, tab,
                                     print_adapt_tmplate_proc_varmse)
+
             startangle = resbehav[0]
             endangle = resbehav[1]
             # end_mvt2 = resbehav[5]
             # dur_mvt2 = resbehav[6]
             varmse = resbehav[7]
+            
+            """
+            if varmse<1 and startangle<0.1 and endangle>10:
+                break
+            """
             comment0 = ""
             if procName != "GEP":
                 err = mse+coactpenality
@@ -5001,7 +5143,8 @@ def runTrials(win, paramserie, paramserieSlices,
                 comment0 = txt.format(err, varmse, varcoactpenality, varcoact)
                 coactpenality = varcoactpenality
                 coact = varcoact
-            resbehav = resbehav[:8]  # remove coactpenality and coact
+                
+            resbehav = resbehav[:8]  # remove coactpenality,  coact ...
 
             if verbose > 3:
                 print(comment0)
@@ -5577,7 +5720,7 @@ def testVarMsePlot(optSet, chartFullName, interval=1./6):
                 colSup3.append(amplitude)
         if len(colSup3) > len(df2):
             colSup3 = colSup3[:-1]
-        df2.loc[:, 'Template_lag'] = colSup3
+        df2.loc[:, 'Template_lag0'] = colSup3
         print("duration_template = ", durMvt2)
         text = "{}   varmse: {}   coact1: {}   coact2: {}\n  mvt duration: {}"
         title = text.format(chartName, behavElts[7], coact1, coact2, durMvt2)
@@ -5591,7 +5734,7 @@ def testVarMsePlot(optSet, chartFullName, interval=1./6):
     df2[4.8:end_time]["Elbow"].plot(color="c")
     df2[4.8:end_time]["Template"].plot(color="grey")
     if amplitude > 10:
-        df2[4.8:end_time]["Template_lag"].plot(color="red")
+        df2[4.8:end_time]["Template_lag0"].plot(color="red")
     plt.vlines(time_midMvt2T, ymin=startangle, ymax=endangle,
                colors='purple', linestyles='solid')
     plt.vlines(time_first_ang_T, ymin=startangle, ymax=endangle,
@@ -5672,7 +5815,7 @@ if __name__ == '__main__':
         print(chartName)
         if chartFullName != "":
             try:
-                shift = testVarMsePlot(optSet, chartFullName, interval=1./8)
+                shift = testVarMsePlot(optSet, chartFullName, interval=1./6)
                 print("shift=", shift)
             except Exception as e:
                 print(e)
