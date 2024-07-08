@@ -273,6 +273,11 @@ Modified June 05, 2024 (D. Cattaert):
     new_run_dir is now created in chartgraph_selected_bhv() method
     This allows the par and bhv csv files of selected behaviors to be saved in
     new_run_dir (run-0, run-1 etc.)
+Modified July 5, 2024 (D. Cattaert):
+    create_df_for_bhv_neur_par() method modified to allow second peak detection
+    at user's demand.
+    get_peaks_and_troughs() procedure modified accordingly. Asks the user
+    Which neurone to search for a second peak.
 """
 import os
 from os import listdir
@@ -1624,6 +1629,7 @@ def select_chartcol(optSet, colnames):
     text = "select gamma MN to plot"
     list_gamma_neur = choose_elements_in_list(list_elem, typ, selected, text)
     return list_sensory_neur, list_alpha_neur, list_gamma_neur
+
 
 def graph_chart_elements(optSet, chart_path, chartName,
                          lstChartColNam=["1FlxPotMuscle", "1ExtPotMuscle"],
@@ -7938,13 +7944,21 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         typ = "chart_col"
         text = "select neurons to plot and analyse"
         list_neur = choose_elements_in_list(list_elem, typ, selected, text)
+        
+        print("Select neurons for a second peak analysis")
+        selected = list_neur
+        typ = "second peak"
+        text = "select neurons for 2nd peak analysis"
+        list_neur_2nd_peak = choose_elements_in_list(list_elem,
+                                                     typ, selected, text)
+        
         print(self.listGEPFolders)
         self.nbExpe = len(self.listGEPFolders)
         if self.nbExpe == 1:
             save_path = self.listGEPFolders[0]
         else:
             save_path = self.graph_path
-
+        
         # Buid the self.df_chart by calling self.chooseChartFromPar() method
         self.chooseChartFromPar(lstChartColNam=list_neur,
                                 y_label="Neurons pot (mV)",
@@ -7952,6 +7966,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         print(self.list_bhvVar)
         # self.newdf_chart = copy.deepcopy(self.df_chart)
         self.new_sub_df_chart = copy.deepcopy(self.sub_df_chart)
+        # exit()
         
         """
         ======================================================================
@@ -7961,10 +7976,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         elem = {}
         lst_df_par = []
         lst_df_par_index = []
-        list_calc = ["_startval", "_1stmax", "_1stmax_t"]
+        list_calc = ["_startval", "_endval", "_1stmax", "_1stmax_t"]
+        list_2nd_peak_calc = ["_2ndmax", "_2ndmax_t"]
         for colname in list_neur:
             for idx, calc in enumerate(list_calc):
                 elem[colname + list_calc[idx]] = []
+            if colname in list_neur_2nd_peak:
+                for idx, calc in enumerate(list_2nd_peak_calc):
+                    elem[colname + list_2nd_peak_calc[idx]] = []
         
         for fold_idx, GEPfold in enumerate(self.listGEPFolders):
             df_chart_fold = self.new_sub_df_chart["origine"] == fold_idx
@@ -7994,19 +8013,49 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 for neur in list_neur:
                     list_rg_pk, list_rg_min = get_peaks_and_troughs(df_n, neur,
                                                                     chartName)
+                    
                     for idx, calc in enumerate(list_calc):
                         if list_calc[idx] == "_startval":
                             list_val = elem[neur + list_calc[idx]]
                             list_val.append(df_n.iloc[0][neur])
                             elem[neur+list_calc[idx]] = list_val
+                        elif list_calc[idx] == "_endval":
+                            list_val = elem[neur + list_calc[idx]]
+                            list_val.append(df_n.iloc[len(df_n)-1][neur])
+                            elem[neur+list_calc[idx]] = list_val
                         elif list_calc[idx] == "_1stmax":
                             list_val = elem[neur + list_calc[idx]]
-                            list_val.append(df_n.iloc[list_rg_pk[0]][neur])
+                            if list_rg_pk != []:                            
+                                list_val.append(df_n.iloc[list_rg_pk[0]][neur])
+                            else:
+                                list_val.append("nan")
                             elem[neur+list_calc[idx]] = list_val
                         elif list_calc[idx] == "_1stmax_t":
                             list_val = elem[neur + list_calc[idx]]
-                            list_val.append(df_n.index[list_rg_pk[0]])
+                            if list_rg_pk != []:                            
+                                list_val.append(df_n.index[list_rg_pk[0]])
+                            else:
+                                list_val.append("nan")
                             elem[neur+list_calc[idx]] = list_val
+
+                    if neur in list_neur_2nd_peak:
+                        for idx, calc in enumerate(list_2nd_peak_calc):
+                            if list_2nd_peak_calc[idx] == "_2ndmax":
+                                list_val = elem[neur + list_2nd_peak_calc[idx]]
+                                if len(list_rg_pk) >1:
+                                    Peak2Val = df_n.iloc[list_rg_pk[1]][neur]
+                                    list_val.append(Peak2Val)
+                                else:
+                                    list_val.append("nan")
+                                elem[neur+list_2nd_peak_calc[idx]] = list_val
+                            elif list_2nd_peak_calc[idx] == "_2ndmax_t":
+                                list_val = elem[neur + list_2nd_peak_calc[idx]]
+                                if len(list_rg_pk) > 1:                            
+                                    list_val.append(df_n.index[list_rg_pk[1]])
+                                else:
+                                    list_val.append("nan")
+                                elem[neur+list_2nd_peak_calc[idx]] = list_val
+                            
         self.lst_df_par = lst_df_par
         self.lst_df_par_index = lst_df_par_index
         df_par_index = []
@@ -8014,16 +8063,16 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             df_par_index += list(idx)
         """
         ======================================================================
-        add new columns in new_sub_df_chart for activities of selected neurons
+        creates a neur_df for activities of selected neurons
         ======================================================================
         """
-        neur_act_names = []
-        for neur in list_neur:
-            for idx, calc in enumerate(list_calc):
-                new_column_name = neur+list_calc[idx]
-                self.new_sub_df_chart[new_column_name] = elem[new_column_name]
-                neur_act_names.append(new_column_name)
+        
+        neur_df = pd.DataFrame(elem)
+        self.neur_df = neur_df
+        neur_act_names = list(neur_df.columns)
         self.neur_act_names = neur_act_names
+        neur_df.index = df_par_index
+        
 
         """
         ======================================================================
@@ -8031,7 +8080,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         ======================================================================
         """
         # self.df_parremain.index = self.df_parremain.orig_rg
-        # ===== change fdatafrae indexes 
+        # ===== change fdataframe indexes 
         df_par = self.df_parremain.loc[df_par_index]
         self.new_sub_df_chart.index = df_par_index
         
@@ -8040,6 +8089,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.clean_sub_df_chart = self.new_sub_df_chart.drop(
             ['origine', 'run_rg'], axis=1)
         chart_glob_df = pd.concat([self.clean_sub_df_chart,
+                                   self.neur_df,
                                    self.df_chart_par], axis=1)
         chart_glob_df["rg_in_whole"] = df_par_index
         self.chart_glob_df = chart_glob_df
@@ -8589,7 +8639,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
 def get_peaks_and_troughs(df_n, neur, chartName):
     dataY = np.array(df_n[neur])
-    dataX = np.array(df_n.index)
+    # dataX = np.array(df_n.index)
     end = len(df_n) - 1
 
     n = 2  # the larger n is, the smoother curve will be
@@ -8616,7 +8666,7 @@ def get_peaks_and_troughs(df_n, neur, chartName):
             [list_rg[i]
             for i in range(len(list_rg))
             if (abs(dataYY[list_rg[i]] - dataYY[1]) > 0.01)
-            and (dataYY[list_rg[i]] - dataYY[list_rg[i] - 20] > 0.05)]
+            and (dataYY[list_rg[i]] - dataYY[list_rg[i] - 10] > 0.01)]
         if corrected_list_rg == []:
             peak_time = df_n.iloc[list_rg][neur].idxmax()
             corrected_list_rg = [int(df_n.loc[peak_time]["rg"])]
@@ -8665,18 +8715,63 @@ def get_peaks_and_troughs(df_n, neur, chartName):
     else:
         rg1 = list_rg_pk[0]
         
+    #============= looks for a trough after last peak ================    
     if df_n.iloc[end][neur] - df_n.iloc[rg1:][neur].min() > 0.05:
             mini_time = df_n.iloc[rg1:][neur].idxmin()
             mini_value = df_n.iloc[rg1:][neur].min()
             mini_rg = int(df_n.loc[mini_time]["rg"])
             list_rg_min.append(mini_rg)
             plt.plot(mini_time, mini_value, "o")
+    else:
+        list_rg_min.append(end)
+        plt.plot(9, df_n.iloc[end][neur], "o")
     
     #plt.plot(dataX, dataYY)
     plt.plot(df_n.index[list_rg_pk], dataY[list_rg_pk], "x")
     plt.legend(loc="lower right", fontsize=14)
     plt.show()
-    return list_rg_pk, list_rg_min
+
+    if (list_rg_min[0], list_rg_pk[0]) == (450, 450):
+         valid_lst_rg_pk, valid_lst_rg_min = [],[]
+         
+    elif list_rg_min[0] < list_rg_pk[0]: # probably started from a plateau
+        x = 0
+        while abs(df_n.iloc[x][neur] - df_n.iloc[0][neur]) < 0.1:
+            x += 1
+        firstpeak_idx = x
+        start_val = df_n.iloc[0][neur]
+        start_time = df_n.index[0]
+        n_list_rg_pk = [firstpeak_idx]
+        for pk_idx in list_rg_pk:
+            n_list_rg_pk.append(pk_idx)
+    else:
+        n_list_rg_pk = list_rg_pk
+
+    if (list_rg_min[0], list_rg_pk[0]) != (450, 450):
+        valid_lst_rg_pk = []
+        valid_lst_rg_min = []
+        for pk in np.arange(len(n_list_rg_pk)):
+            """
+            print(pk,"peak:",
+                  "{:04.2f}".format(df_n.iloc[n_list_rg_pk[pk]][neur]),
+                  end=" ")
+            print("trough:",
+                  "{:04.2f}".format(df_n.iloc[list_rg_min[pk]][neur]),
+                  end=" ")   
+            """
+            peakval = df_n.iloc[n_list_rg_pk[pk]][neur]
+            # preced_minval = df_n.iloc[list_rg_min[pk]][neur]
+            next_minval =  df_n.iloc[list_rg_min[pk]][neur]
+                
+            # if (peakval - preced_minval) > 0.5 and (peakval - next_minval) > 0.5:
+            if (peakval - next_minval) > 0.1:
+                valid_lst_rg_pk.append(n_list_rg_pk[pk])
+                valid_lst_rg_min.append(list_rg_min[pk])
+                # print("OK")
+            else:
+                None
+                # print("Rejected")
+    return valid_lst_rg_pk, valid_lst_rg_min
 
 """
 Code lines usefull to make bhvplot(), bhnparamplot, densitycontourplot
