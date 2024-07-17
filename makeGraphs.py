@@ -283,6 +283,15 @@ Modified July 15, 2024 (D. Cattaert):
     NaN element
     buildStpDiscretCol() procedure modified to get a single color scale (<50),
     because plotting to legends(plt.legend()) is no more accepted.
+Modified July 17, 2024 (D. Cattaert):
+    Bug fixed in "save (par+bhv) dataframe to csv". The problem came from the
+    variable "self.new_run_dir" that was not defined in the method
+    "construct_df_par_bhv_remains" but only in neuron analysis. Therfor, any
+    call to "save "par+bhv dataframes to csv" directely after running
+    "make/analyze (par+bhv) dataframe" failed. This is now fixed in the method
+    "construct_df_par_bhv_remains":
+        new line added after the folders have been selected: 
+            self.new_run_dir = self.graph_path
 """
 import os
 from os import listdir
@@ -6497,7 +6506,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                             lst_df_parremain, lst_df_bhvremain)
                 (concatpairs, concatbehavs,
                  lst_df_parremain, lst_df_bhvremain, lst_lenTab) = res
-
+        self.new_run_dir = self.graph_path
         self.lst_df_parremain = lst_df_parremain
         self.lst_df_bhvremain = lst_df_bhvremain
         self.lst_lenTab = lst_lenTab
