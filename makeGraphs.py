@@ -278,6 +278,11 @@ Modified July 5, 2024 (D. Cattaert):
     at user's demand.
     get_peaks_and_troughs() procedure modified accordingly. Asks the user
     Which neurone to search for a second peak.
+Modified July 15, 2024 (D. Cattaert):
+    read_csv_for_df_bhv_neur_par() method modified to accept lines containing a
+    NaN element
+    buildStpDiscretCol() procedure modified to get a single color scale (<50),
+    because plotting to legends(plt.legend()) is no more accepted.
 """
 import os
 from os import listdir
@@ -2251,8 +2256,8 @@ def buildStpDiscretCol(df_glob, factor):
     newsortf = newsortf.astype(int)
     mini = newsortf.min()
     maxi = newsortf.max()
-    while nb_levels <= 100:
-        mult *= 10
+    while nb_levels <= 50:
+        mult *= 2
         newsortf = copy.deepcopy(sort_factor)
         # newsortf = (newsortf * 10)
         newsortf = newsortf * mult
@@ -2261,8 +2266,8 @@ def buildStpDiscretCol(df_glob, factor):
         maxi = newsortf.max()
         nb_levels = maxi-mini + 1
         # print nb_levels
-    if nb_levels > 100:
-        mult = mult/10
+    if nb_levels > 50:
+        mult = mult/2
         newsortf = copy.deepcopy(sort_factor)
         # newsortf = (newsortf * 10)
         newsortf = newsortf * mult
@@ -2273,6 +2278,7 @@ def buildStpDiscretCol(df_glob, factor):
         # print nb_levels
 
     print("nb_levels:", nb_levels)
+    
 
     # =========    build the palettte for factor df   ==========
     step_palette = []
@@ -7223,13 +7229,17 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             labels = copy.deepcopy(classes)
             labels.sort(reverse=True)
             nbcolors = len(classes)
+            """
             if nbcolors < 50:
-                handles = [plt.plot([], [], color=color_map[labels[i]],
-                                    ls="", marker='o',
-                                    markersize=6)[0] for i in range(nbcolors)]
-                # In legend order is that of classes (revert order)
-                plt.legend(handles, labels, loc=(1.02, 0))
-                plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+            # the double colorscale is no more accepted...
+            """
+            handles = [plt.plot([], [], color=color_map[labels[i]],
+                                ls="", marker='o',
+                                markersize=6)[0] for i in range(nbcolors)]
+            # In legend order is that of classes (revert order)
+            plt.legend(handles, labels, loc=(1.02, 0))
+            plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+            """
             else:
                 # ------------ 1st set of legend elements  ----------------
                 labels1 = labels[:int(nbcolors/2)]
@@ -7255,6 +7265,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                            loc=(posx_legend2, 0))
                 plt.gca().add_artist(second_legend)
                 plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
+            """
         var1_st = var1[:var1.find(".")]
         var2_st = var2[:var2.find(".")]
         tit = "{}{}-{}col={}".format(titre, var1_st, var2_st, factor)
@@ -7773,7 +7784,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             self.chart_glob_df = pd.read_csv(self.fname)
             self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'],
                                                          axis=1)
-            self.chart_glob_df.dropna(inplace=True)
+            """
+            # Suppression of all row containing a Nan
+             self.chart_glob_df.dropna(inplace=True)
+            """
             print(self.chart_glob_df)
             lst_glob_df_colNames = list(self.chart_glob_df.columns)
             self.neur_act_names = [nam for nam in lst_glob_df_colNames

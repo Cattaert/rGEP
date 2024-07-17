@@ -81,6 +81,15 @@ Modified February 01, 2024 (D. Cattaert):
                             range(4-int((len(synapseName)+1)/8))
     in affichConnexionsFR() range(3-(len(synapseName[syn])+1)/8) replaced by
                             range(3-int((len(synapseName[syn])+1)/8))
+Modified June 06, 2024 (D.Cattaert):
+    TestQuality changed to take into account:
+    - New way to calculate Coactivity,
+    - Limitation for amplitude
+    - Normalization of the movement:
+        new procedure: NormMeanSquarreErrorTemplate()
+Modified June 20, 2024 (D. Cattaert):
+    NormMeanSquarreErrorTemplate() procedure normializes to a 60° movement for
+    calculation of MSE. (It was 1° in previous version).
 Modified July 8, 2024 (D. Cattaert):
     NormMeanSquarreErrorTemplate() procedure mofidied to include a new default
     variable: normAmpl=50. 
@@ -89,7 +98,6 @@ Modified July 8, 2024 (D. Cattaert):
     If not stated in the call, the movement will be normalized to a 50°
     amplitude movement. Previously the normalization set was 60°, which
     resulted in a too strict selection of valic behaviors.
-    
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -2469,6 +2477,20 @@ def correl(table, column1, column2, lineStart, lineEnd):
     return cov
 
 
+def MeanSquarreError(data, val):
+    if len(data) == 0:
+        return 0
+    n = 0
+    Sum_sqr = 0
+    for x in data:
+        n = n + 1
+        Sum_sqr += (x - val) * (x - val)
+    mse = Sum_sqr/n
+    # use n instead of (n-1) if want to compute the exact
+    # variance of the given data
+    # use (n-1) if data are samples of a larger population
+    return mse
+
 
 """
 # Following lines were used to create "data_example.txt"
@@ -2516,7 +2538,6 @@ for i in range(len(template)-1):
     f.write(str(template[i][j+1]) + '\n')
 f.close()
 
-
 pathname = "C:/Labo/Simulations/!Python3_scripts/GEP" \
             + "/AnimatLab_simulations-DC_py35/z_data&template"
 filename = "template_example_for overshoot.txt"
@@ -2533,6 +2554,51 @@ lineEnd = 850
 lag = 13
 """
 
+def MeanSquarreErrorTemplate(data, template, mvtfirstline,
+                             lineStart, lineEnd, lag):
+    """
+    calculate the MSE between mvtdata (that starts at line mvtfirstline)
+    and template that starts at 0
+    """
+    if len(data) == 0:
+        return 0
+    n = 0
+    Sum_sqr = 0
+    for x in range(lineStart, lineEnd):
+        n = n + 1
+        Sum_sqr += (data[x] - template[x+lag+mvtfirstline][2])**2
+    mse = Sum_sqr/n
+    # use n instead of (n-1) if want to compute the exact
+    # variance of the given data
+    # use (n-1) if data are samples of a larger population
+    return mse
+
+def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
+                                 lineStart, lineEnd, lag, normAmpl=50):
+    """
+    calculate the MSE between normalized mvtdata (that starts at line
+    mvtfirstline) and template that starts at 0
+    """
+    # ampl = max(data) - data[mvtfirstline]
+    ampl = data[lineEnd] - data[mvtfirstline]
+    if ampl < 1:
+        mse=1000
+        return mse
+    normdata = [z*normAmpl/ampl for z in data]
+    normtemplate = [[x, y, z*normAmpl/ampl] for [x, y, z] in template]
+    if len(data) == 0:
+        return 0
+    n = 0
+    Sum_sqr = 0
+    for x in range(lineStart, lineEnd):
+        n = n + 1
+        Sum_sqr += (normdata[x] - normtemplate[x+lag+mvtfirstline][2])**2
+    mse = Sum_sqr/n
+    # mse = mse*1000  # to keep compatibility with previous mse calculation
+    # use n instead of (n-1) if want to compute the exact
+    # variance of the given data
+    # use (n-1) if data are samples of a larger population
+    return mse
 
 def chargeBestFeatures(folders, filename, defaultval, nbpar):
     strTab = []
@@ -2835,71 +2901,6 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
     return [coactpenality, coact, actMN0, actMN1]
 
 
-def MeanSquarreError(data, val):
-    if len(data) == 0:
-        return 0
-    n = 0
-    Sum_sqr = 0
-    for x in data:
-        n = n + 1
-        Sum_sqr += (x - val) * (x - val)
-    mse = Sum_sqr/n
-    # use n instead of (n-1) if want to compute the exact
-    # variance of the given data
-    # use (n-1) if data are samples of a larger population
-    return mse
-
-
-def MeanSquarreErrorTemplate(data, template, mvtfirstline,
-                             lineStart, lineEnd, lag):
-    """
-    calculate the MSE between mvtdata (that starts at line mvtfirstline)
-    and template that starts at 0
-    """
-    if len(data) == 0:
-        return 0
-    n = 0
-    Sum_sqr = 0
-    for x in range(lineStart, lineEnd):
-        n = n + 1
-        Sum_sqr += (data[x] - template[x+lag+mvtfirstline][2])**2
-    mse = Sum_sqr/n
-    # use n instead of (n-1) if want to compute the exact
-    # variance of the given data
-    # use (n-1) if data are samples of a larger population
-    return mse
-
-
-def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
-                                 lineStart, lineEnd, lag, normAmpl=50):
-    """
-    calculate the MSE between normalized mvtdata (that starts at line
-    mvtfirstline) and template that starts at 0
-    """
-    # ampl = max(data) - data[mvtfirstline]
-    ampl = data[lineEnd] - data[mvtfirstline]
-    if ampl < 1:
-        mse=1000
-        return mse
-    normdata = [z*normAmpl/ampl for z in data]
-    normtemplate = [[x, y, z*normAmpl/ampl] for [x, y, z] in template]
-    if len(data) == 0:
-        return 0
-    n = 0
-    Sum_sqr = 0
-    for x in range(lineStart, lineEnd):
-        n = n + 1
-        Sum_sqr += (normdata[x] - normtemplate[x+lag+mvtfirstline][2])**2
-    mse = Sum_sqr/n
-    # mse = mse*1000  # to keep compatibility with previous mse calculation
-    # use n instead of (n-1) if want to compute the exact
-    # variance of the given data
-    # use (n-1) if data are samples of a larger population
-    return mse
-
-
-
-
 def testquality(optSet, tab, template, msetyp,
                 affich=1, other_constraints = {}):
     """
@@ -2920,6 +2921,8 @@ def testquality(optSet, tab, template, msetyp,
     """
     other_constraints = {}
     other_constraints["max_endangle"] = 115
+    # other_constraints["endFlx_pot"] = -0.060
+    # other_constraints["endExt_pot"] = -0.060
     
     max_lag = 100
     # mvt = tab[:][optSet.mvtcolumn]
@@ -2942,6 +2945,9 @@ def testquality(optSet, tab, template, msetyp,
         if "max_endangle" in other_constraints.keys():
             if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
                 mse += 500
+            if "endExt_pot" in other_constraints.keys():
+                if tabMN1[optSet.lineEnd] > other_constraints["endExt_pot"]:
+                    mse += 500
     # print(mse, end=' ')
     msetab.append(mse)
     prevmse = mse
@@ -2958,6 +2964,9 @@ def testquality(optSet, tab, template, msetyp,
         if other_constraints != {}:
             if "max_endangle" in other_constraints.keys():
                 if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
+                    mse += 500
+            if "endExt_pot" in other_constraints.keys():
+                if tabMN1[optSet.lineEnd] > other_constraints["endExt_pot"]:
                     mse += 500
         # print(mse, end=' ')
         # if lag == -30:
@@ -3695,6 +3704,10 @@ def readGravityfromAsim(model):
     return gravity
 
 
+# TODO : CMAES
+###########################################################################
+#                           CMAe procedures
+###########################################################################
 def actualiseSaveAprojFromAsimFile(optSet, asimFileName, aprojFileName,
                                    simSet=SimulationSet.SimulationSet(),
                                    overwrite=0, createSimSet=1, affiche=1):
@@ -3921,11 +3934,6 @@ def normToRealVal(x, optSet, simSet, stimParName,
     return [simSet, vals]
 
 
-
-# TODO : CMAES
-###########################################################################
-#                           CMAe procedures
-###########################################################################
 def saveAsimAprojFilesformSimFilesDir(folders, optSet, model,
                                       nameSuffix,
                                       destAsimDir,
@@ -5810,14 +5818,7 @@ if __name__ == '__main__':
     # truc is created and closed, but its method graphfromchart can be called
     # ======================================================================
     # truc.select_variables()
-    list_chart_files = []
-    for file in os.listdir(chartDir):
-        if (file.startswith("GEP_chart") 
-            and file.endswith(".txt")) :
-            list_chart_files.append(file)
-    chart_path = chartDir
     Go_ON = True
-    """
     while Go_ON:
         chartFullName = filedialog.askopenfilename(initialdir=chartDir,
                                                    title="Select chart file",
@@ -5825,13 +5826,8 @@ if __name__ == '__main__':
                                                                "*.txt"),
                                                               ("all files",
                                                                "*.*")))
-        
         chart_path = os.path.split(chartFullName)[0]
         chartName = os.path.split(chartFullName)[-1]
-        """
-    for chartName in list_chart_files:
-        chartFullName = chartDir + "/" + chartName
-    #"""    
         print(chartName)
         if chartFullName != "":
             try:
