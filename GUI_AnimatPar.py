@@ -18,6 +18,9 @@ Modified March 02, 2023 (D. Cattaert):
     New procedure check_mesh() checks that the asim file was built frm the 
     aproj file (i.e. same meshFiles). If not it aborts the script and tells
     what to do.
+Modified July 19, 2024 (D. Cattaert):
+    When saving the new AnimatLab parameters, the SynAmp of disabled synapses
+    is set to 0 and asim and aproj are saved.
 """
 # Form implementation generated from reading ui file 'design7.ui'
 #
@@ -49,6 +52,7 @@ from FoldersArm import FolderOrg
 from optimization import copyFileDir
 # from optimization import getInfoComputer
 from optimization import showdialog
+
 
 # from SaveInfoComputer import SetComputerInfo
 # folders = FolderOrg()
@@ -984,6 +988,25 @@ class ReadAsimAform(Ui_MainWindow):
         saveParams(os.path.join(self.folders.animatlab_result_dir,
                                 'paramOpt.pkl'),
                    self.optSet)
+        aprojfName = os.path.split(self.model.aprojFile)[-1]
+        aprojSaveDir = self.folders.animatlab_rootFolder
+
+        asimfName = os.path.split(self.model.asimFile)[-1]
+
+
+        self.model.saveXML(aprojSaveDir + "/" + asimfName,
+                           overwrite=True)
+        self.model.saveXML(aprojSaveDir + "/FinalModel/" + asimfName,
+                           overwrite=True)
+        self.model.saveXML(aprojSaveDir + "/AprojFiles/" + asimfName,
+                           overwrite=True)
+        
+        self.model.saveXMLaproj(aprojSaveDir + "/" + aprojfName,
+                                overwrite=True)
+        self.model.saveXMLaproj(aprojSaveDir + "/FinalModel/" + aprojfName,
+                                overwrite=True)
+        self.model.saveXMLaproj(aprojSaveDir + "/AprojFiles/" + aprojfName,
+                                overwrite=True)
 
     def miseAjour(self):
         """

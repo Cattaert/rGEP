@@ -98,6 +98,13 @@ Modified July 8, 2024 (D. Cattaert):
     If not stated in the call, the movement will be normalized to a 50°
     amplitude movement. Previously the normalization set was 60°, which
     resulted in a too strict selection of valic behaviors.
+    
+Modified July 19, 2024 (D. Cattaert):
+    New procedure introduced:
+        enableSynNS(model, Connexions, disabledSynNbs, show=1)
+        This procedure is called by animatOptimSetting.py to set disabled 
+        synapses SynAmp to 0 for  (in GUI_AnimatPar.py)
+        Both .asim files and .aproj files are modified in the model directory
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3604,6 +3611,110 @@ def enableStims(ExternalStimuli, stims):
         stimRank = stims[stim]
         ExternalStimuli[stimRank].find("Enabled").text = 'True'
 
+
+def enableSynNS(model, Connexions, disabledSynNbs, show=1):
+    syn = 0
+    sourceID, targetID, connexType, connexG = [], [], [], []
+    connexSourceName, connexTargetName = [], []
+    connexSourceEnabled, connexTargetEnabled = [], []
+    synapseID, synapseName, synapseType = [], [], []
+    synapseEquil, synapseSynAmp, synapseThr = [], [], []
+    # get connexions' source, target, and values...
+    while syn < len(Connexions):
+        sourceID.append(Connexions[syn].find("SourceID").text)
+        targetID.append(Connexions[syn].find("TargetID").text)
+        neuronSource = model.getElementByID(sourceID[syn])
+        neuronTarget = model.getElementByID(targetID[syn])
+        connexSourceName.append(neuronSource.find("Name").text)
+        connexTargetName.append(neuronTarget.find("Name").text)
+        connexSourceEnabled.append(neuronSource.find("Enabled").text)
+        connexTargetEnabled.append(neuronTarget.find("Enabled").text)
+        
+        connexType.append(Connexions[syn].find("Type").text)
+        connexG.append(float(Connexions[syn].find("G").text))
+
+        synapseTempID = Connexions[syn].find("SynapseTypeID").text
+        synapseID.append(synapseTempID)
+        synapseTempName = model.getElementByID(synapseTempID).find("Name").text
+        synapseName.append(synapseTempName)
+        synapseTempType = model.getElementByID(synapseTempID).find("Type").text
+        synapseType.append(synapseTempType)
+        TempEquil = model.getElementByID(synapseTempID).find("Equil").text
+        synapseEquil.append(float(TempEquil))
+        TempSynAmp = model.getElementByID(synapseTempID).find("SynAmp").text
+        synapseSynAmp.append(float(TempSynAmp))
+        if synapseTempType == "NonSpikingChemical":
+            TempThreshV = model.getElementByID(synapseTempID).\
+                find("ThreshV").text
+            synapseThr.append(float(TempThreshV))
+        elif synapseTempType == "SpikingChemical":
+            TempThreshV = model.getElementByID(synapseTempID).\
+                find("ThreshPSPot").text
+            synapseThr.append(float(TempThreshV))
+        syn = syn+1
+    # ... and print them
+    if show == 1:
+        print()
+        print("list of 'Voltage neurons' connexions")
+    if len(Connexions) == 0:
+        print("No  'Voltage neurons' Connexions")
+
+    syn_to_zero = []
+    for syn in disabledSynNbs:
+        if show == 1:
+            source = connexSourceEnabled[syn]
+            target = connexTargetEnabled[syn]
+            if source != "False" and target != "False":
+                syn_to_zero.append(syn)
+                space = ""
+                for k in range(4-int((len(synapseName[syn])+7)/8)):
+                    space += "\t"
+                txt = '[%2d]  %s;' + space + 'SynAmp:%4.2f;\tThr:%4.2f;'
+                txt = txt + '\tGMax:%4.3f;\tEquil:%4.2f; \t%s;\t%s->%s'
+                txt = txt + '\tSynAmp set to 0'
+                print(txt % (
+                            syn,
+                            synapseName[syn],
+                            synapseSynAmp[syn],
+                            synapseThr[syn],
+                            connexG[syn],
+                            synapseEquil[syn],
+                            synapseType[syn],
+                            connexSourceName[syn],
+                            connexTargetName[syn]
+                            ))
+    for syn in syn_to_zero:
+        synapseTempID = Connexions[syn].find("SynapseTypeID").text
+        model.getElementByID(synapseTempID).find("SynAmp").text = "0"
+        txt = '[%2d]  %s;' + space + 'SynAmp:%4.2f;\tThr:%4.2f;'
+        txt = txt + '\tGMax:%4.3f;\tEquil:%4.2f; \t%s;\t%s->%s'
+        TempSynAmp = model.getElementByID(synapseTempID).find("SynAmp").text
+        synapseSynAmp[syn] = float(TempSynAmp)
+        print(txt % (
+                    syn,
+                    synapseName[syn],
+                    synapseSynAmp[syn],
+                    synapseThr[syn],
+                    connexG[syn],
+                    synapseEquil[syn],
+                    synapseType[syn],
+                    connexSourceName[syn],
+                    connexTargetName[syn]
+                    ))
+    # Modifying the .aproj file 
+    for syn in syn_to_zero:
+        name = synapseName[syn],
+        node = model.getElementByNameAproj(name)
+        el = node.find('MaxSynapticConductance')
+        va = el.get("Value")
+        sc = el.get("Scale")
+        ac = el.get("Actual")
+        el.set("Value", str(0))
+        el.set("Scale", sc)
+        el.set("Actual", str(0))
+        
+        
+        
 
 def setMotorStimsON(model, motorStimuli):
     """

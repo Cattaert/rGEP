@@ -6,6 +6,10 @@ Class that contains all parameters, stimuli and synapses for optimization
 Translated in Python 3.8 Jan 2023 (D. Cattaert)
 Modified February 20, 2023 (D. Cattaert):
     fourchSyn nd fourchStim have been replaced by spanSyn and spanStim
+Modified July 19, 2024 (D. Cattaert):
+    enableSynNS() introduced to set to 0 SynAmp of disblaed synapses.
+    This call is made in actualizeparamVSCD() method, that is called in 
+    GUI_AnimatPar.py before savinf the parameters.
 """
 
 import random
@@ -20,7 +24,8 @@ from optimization import affichChartColumn, affichExtStim
 from optimization import affichMotor
 from optimization import affichNeurons, affichNeuronsFR
 from optimization import affichConnexions, affichConnexionsFR
-from optimization import enableStims, formTemplateSmooth, savecurve
+from optimization import enableStims, enableSynNS
+from optimization import formTemplateSmooth, savecurve
 
 from FoldersArm import FolderOrg
 folders = FolderOrg()
@@ -484,9 +489,12 @@ class OptimizeSimSettings():
                   self.folders.animatlab_result_dir, "template.txt")
         print("   mvtTemplate.txt saved in", end=' ')
         print(self.folders.animatlab_result_dir)
+        """
         # ##############################################################
         #   Selection of "dontChange" & "disabled" for Optimization    #
         # ##############################################################
+        """
+        # ========================= Stimuli ============================
         self.dontChangeStimNbs = self.paramOpt['dontChangeStimNbs']
         self.dontChangeStimName = []
         for i in self.dontChangeStimNbs:
@@ -496,24 +504,6 @@ class OptimizeSimSettings():
         for i in self.disabledStimNbs:
             self.disabledStimNames.append(self.stimName[i])
 
-        self.dontChangeSynNbs = self.paramOpt['dontChangeSynNbs']
-        self.dontChangeSynNames = []
-        for i in self.dontChangeSynNbs:
-            self.dontChangeSynNames.append(self.connexName[i])
-        self.disabledSynNbs = self.paramOpt['disabledSynNbs']
-        self.disabledSynNames = []
-        for i in self.disabledSynNbs:
-            self.disabledSynNames.append(self.connexName[i])
-
-        self.dontChangeSynFRNbs = self.paramOpt['dontChangeSynFRNbs']
-        self.dontChangeSynFRNames = []
-        for i in self.dontChangeSynFRNbs:
-            self.dontChangeSynFRNames.append(self.connexFRName[i])
-        self.disabledSynFRNbs = self.paramOpt['disabledSynFRNbs']
-        self.disabledSynFRNames = []
-        for i in self.disabledSynFRNbs:
-            self.disabledSynFRNames.append(self.connexFRName[i])
-
         self.stimsTot = []
         for i in range(len(self.tab_stims)):
             self.stimsTot.append(i)    # selects all stimulis
@@ -522,7 +512,12 @@ class OptimizeSimSettings():
             stimRank = self.stimsTot[stim]
             if stimRank not in self.disabledStimNbs:
                 self.enabledstimList.append(stimRank)
-        # enabled external stimuli --> 'true'
+        """
+        # --------------------------------------------------------------
+        #           enabled external stimuli --> 'true'
+        #           disabled external stimuli.--> 'false'
+        # --------------------------------------------------------------
+        """
         enableStims(self.ExternalStimuli, self.enabledstimList)
         print("   optSet : Enabled external stimuli set to 'true'", end=' ')
         print("   and excluded to 'false'")
@@ -533,10 +528,10 @@ class OptimizeSimSettings():
             stimRank = self.enabledstimList[stim]
             if stimRank not in self.dontChangeStimNbs:  # do not includes
                 self.stimList.append(stimRank)           # 'dontChangeStimNbs'
-        # After changing a property, save the updated model
-        # self.model.saveXML(overwrite=True)   # in the FinalModel dir
-        # self.tab_stims = affichExtStim(self.ExternalStimuli, 1)
-        # self.stimList  : list without disabled stims and dontChangeStims
+        # After changing a property, the updated model (.asim and .aproj)
+        # will be saved in the FinalModel dir when the param file will be
+        # saved in GUI_AnimatPar.py
+
         self.orderedstimsTot = []
         for i in range(len(self.stimList)):
             self.orderedstimsTot.append(i)
@@ -546,13 +541,38 @@ class OptimizeSimSettings():
                       self.lineStartTot, self.lineEndTot, self.mvtTemplate]
         self.allPhasesStim = [self.total]
 
-        # ###########   Connexions   #########################
+        # ======================== Synapses ============================
+        self.dontChangeSynNbs = self.paramOpt['dontChangeSynNbs']
+        self.dontChangeSynNames = []
+        for i in self.dontChangeSynNbs:
+            self.dontChangeSynNames.append(self.connexName[i])
+        self.disabledSynNbs = self.paramOpt['disabledSynNbs']
+        self.disabledSynNames = []
+        for i in self.disabledSynNbs:
+            self.disabledSynNames.append(self.connexName[i])
+        model= self.model
+        Connexions = self.Connexions
+        disabledSynNbs = self.disabledSynNbs
+        enableSynNS(model, Connexions, disabledSynNbs, show=1)
+
+        self.dontChangeSynFRNbs = self.paramOpt['dontChangeSynFRNbs']
+        self.dontChangeSynFRNames = []
+        for i in self.dontChangeSynFRNbs:
+            self.dontChangeSynFRNames.append(self.connexFRName[i])
+        self.disabledSynFRNbs = self.paramOpt['disabledSynFRNbs']
+        self.disabledSynFRNames = []
+        for i in self.disabledSynFRNbs:
+            self.disabledSynFRNames.append(self.connexFRName[i])
+
+
         self.tab_motors = affichMotor(self.model, self.motorStimuli, 0)
         self.tab_chartcolumns = affichChartColumn(self.ChartColumns, 0)
         self.tab_stims = affichExtStim(self, self.ExternalStimuli, 0)
         self.tab_neurons = affichNeurons(self, self.Neurons, 0)
         self.tab_neuronsFR = affichNeuronsFR(self, self.NeuronsFR, 0)
         self.synsTot, self.synsTotFR = [], []
+
+        # ###########   Connexions   #########################
         # --------------------------------------
         # Synapses between 'voltage' neurons
         # --------------------------------------
