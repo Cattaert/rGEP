@@ -317,6 +317,7 @@ import pandas as pd
 # from openpyxl import Workbook
 import seaborn as sns
 from scipy.stats import pearsonr
+from scipy.stats import linregress
 from scipy.signal import find_peaks_cwt
 from scipy.signal import find_peaks
 from scipy.signal import lfilter
@@ -7191,7 +7192,14 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         """
         Produces a pdf plot of the two parameters plus color code for the third
         """
-
+        win_title = "Ask for regression"
+        info = "Do you want regression line?"
+        rep = dialogWindow(win_title, info, details="")
+        if rep:
+            calc_regression = True
+        else:
+            calc_regression = False
+        
         codeCoul_df = copy.deepcopy(df_glob[[factor]])
         sort_factor = codeCoul_df[factor].values
         min_coul = min(sort_factor)
@@ -7202,9 +7210,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         var1 = two_selected_var[0]
         var2 = two_selected_var[1]
         graph_path = self.graph_path
+        glob_df = copy.deepcopy(df_glob)
+
         figure, ax = plt.subplots(figsize=(7, 7), dpi=100)
         size = figure.get_size_inches()*figure.dpi  # size in pixels
-        glob_df = copy.deepcopy(df_glob)
 
         if factor is None:
             self.palette = sns.color_palette("Set1")
@@ -7275,13 +7284,36 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 plt.gca().add_artist(second_legend)
                 plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
             """
+        if calc_regression:
+            x = np.array(glob_df.loc[:, var1])
+            y = np.array(glob_df.loc[:, var2])
+            # suppression of all "NaN" in x,y
+            finiteIdx = np.isfinite(x) & np.isfinite(y)
+            x_clean = x[finiteIdx]
+            y_clean = y[finiteIdx]
+            # Perform linear regression
+            slope, intercept, r_value, p_value, std_err = linregress(x_clean,
+                                                                     y_clean)
+            r_value = r_value
+            r_squared = round(r_value ** 2, 4)
+            # Calculate y values for the regression line using list comprehension
+            y_pred = [slope * xi + intercept for xi in x]
+            # Add regression line to the plot
+            ax.plot(x, y_pred)
+            # plt.figtext(0.15, 0.77, f'R^2 = {r_squared}')
+            txt_regression = f"R^2 = {r_squared:.3f}; p = {p_value:.4f}"
+        else:
+            txt_regression = ""
+
         var1_st = var1[:var1.find(".")]
         var2_st = var2[:var2.find(".")]
         tit = "{}{}-{}col={}".format(titre, var1_st, var2_st, factor)
+        sstit = ss_titre_to_txt(ss_titre)
+        ss_titre += txt_regression
+
         titre_2lines = "{}\n{}".format(tit, ss_titre)
         plt.suptitle(titre_2lines, fontsize=14)
 
-        sstit = ss_titre_to_txt(ss_titre)
         """
         plt.savefig(r'{0}/{1} {2}.eps'.format(graph_path, tit, sstit),
                     bbox_inches='tight')

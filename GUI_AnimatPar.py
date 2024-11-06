@@ -22,11 +22,7 @@ Modified July 19, 2024 (D. Cattaert):
     When saving the new AnimatLab parameters, the SynAmp of disabled synapses
     is set to 0 and asim and aproj are saved.
 """
-# Form implementation generated from reading ui file 'design7.ui'
-#
-# Created by: PyQt5 UI code generator 5.6
-#
-# WARNING! All changes made in this file will be lost!
+
 
 # import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
