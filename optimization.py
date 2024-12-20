@@ -105,6 +105,20 @@ Modified July 19, 2024 (D. Cattaert):
         This procedure is called by animatOptimSetting.py to set disabled 
         synapses SynAmp to 0 for  (in GUI_AnimatPar.py)
         Both .asim files and .aproj files are modified in the model directory
+Mofified December 20, 2024 (D. Cattaert):
+    Procedure testquality changed to calculate "endAngleP" and "endMNpotP"
+    These two penalities are added in a new variable "otherPenality" that is
+    now included in mse. The variable "otherPenality" is retruned by the 
+    procedure testQuality:
+        return [mse, coactpenality, otherpenality, res1, res2]
+    
+    Procedure getBehavElts modified consequently:
+      otherpenality is returned instead of coact
+      Bug fixed in case of too slow movemens:
+        if endMvt2T > optSet.endPos2 - 2:
+          print("movement end = {} => rejected; varmse = 100".format(endMvt2T))
+          slowMvtPenality = 100 * (endMvt2T - optSet.endPos2 + 2)
+        slowMvtPenality is now included in mse
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -1719,15 +1733,15 @@ def readCoacPenality(datastructure):
         # rg = 0
         conditions = datastructure[rg][4]
         if type(conditions[0]) is list:    # this is the new span list format
-            coact = conditions[1]
+            coactP = conditions[1]
         else:   # this is the old format with spanStim and spanSyn
-            coact = conditions[2]
-        if type(coact) is list:
-            coactpenality1 = coact[0]
-            coactpenality2 = coact[1]
+            coactP = conditions[2]
+        if type(coactP) is list:
+            coactpenality1 = coactP[0]
+            coactpenality2 = coactP[1]
         else:
-            coactpenality1 = coact
-            coactpenality2 = coact
+            coactpenality1 = coactP
+            coactpenality2 = coactP
         print("coactpenality1={}; coactpenality2={}".format(coactpenality1,
                                                             coactpenality2))
     return coactpenality1, coactpenality2
@@ -2588,7 +2602,7 @@ def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
     """
     # ampl = max(data) - data[mvtfirstline]
     ampl = data[lineEnd] - data[mvtfirstline]
-    if ampl < 1:
+    if ampl < 0.1:
         mse=1000
         return mse
     normdata = [z*normAmpl/ampl for z in data]
@@ -2916,10 +2930,10 @@ def testquality(optSet, tab, template, msetyp,
             tab : The table which contains the values from the simulation
             template : The template to which compare the retrieved movement
             affich : Wether we display some infos or not
-        Out : mse : The computed MSE
+        Out : mse : The computed MSE including otherpenality
             coactpenality : The penality induced by the coactivity of
                 the muscles correctly weighted
-            coact : The coactivity of the muscles
+            otherpenality : penality due to other_constraints
     Calculates the Mean Square Error (mse) between a mouvement column vector
     (mvt) in an array (tab) and a reference vector (template).
     It calculates also the coactivity between two columns (tabMN0 and tabMN1)
@@ -2928,8 +2942,8 @@ def testquality(optSet, tab, template, msetyp,
     """
     other_constraints = {}
     other_constraints["max_endangle"] = 115
-    # other_constraints["endFlx_pot"] = -0.060
-    # other_constraints["endExt_pot"] = -0.060
+    other_constraints["max_endMN_pot"] = -0.060
+
     
     max_lag = 100
     # mvt = tab[:][optSet.mvtcolumn]
@@ -2940,7 +2954,9 @@ def testquality(optSet, tab, template, msetyp,
     tabMN0 = extractCol(tab, optSet.mnColChartNbs[0])
     tabMN1 = extractCol(tab, optSet.mnColChartNbs[1])
     coactpenality = 0.
-    coact = 0.
+    endAngleP = 0.
+    endMNpotP = 0.
+    otherpenality = 0.
     # quality = variance(mvt)
     lag = -max_lag
     dmse = 0
@@ -2948,13 +2964,7 @@ def testquality(optSet, tab, template, msetyp,
     mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
                                        optSet.lineStart+max_lag,
                                        optSet.lineEnd-max_lag, lag)
-    if other_constraints != {}:
-        if "max_endangle" in other_constraints.keys():
-            if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
-                mse += 500
-            if "endExt_pot" in other_constraints.keys():
-                if tabMN1[optSet.lineEnd] > other_constraints["endExt_pot"]:
-                    mse += 500
+
     # print(mse, end=' ')
     msetab.append(mse)
     prevmse = mse
@@ -2968,13 +2978,7 @@ def testquality(optSet, tab, template, msetyp,
         mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
                                            optSet.lineStart+max_lag,
                                            optSet.lineEnd-max_lag, lag)
-        if other_constraints != {}:
-            if "max_endangle" in other_constraints.keys():
-                if mvt[optSet.lineEnd] > other_constraints["max_endangle"]:
-                    mse += 500
-            if "endExt_pot" in other_constraints.keys():
-                if tabMN1[optSet.lineEnd] > other_constraints["endExt_pot"]:
-                    mse += 500
+        
         # print(mse, end=' ')
         # if lag == -30:
         #     print(comment, mse, end=' ')
@@ -2987,7 +2991,25 @@ def testquality(optSet, tab, template, msetyp,
         # print(dmse)
         if lag % 2 == 0:
             slide += "/"
+    optSet.templateLag = lag * float(optSet.collectInterval)
     mse = min(msetab)
+    
+    if other_constraints != {}:
+        if "max_endangle" in other_constraints.keys():
+            max_angle = other_constraints["max_endangle"]
+            end_angle = mvt[optSet.lineEnd]
+            if  end_angle > max_angle:
+                endAngleP = 100 * (end_angle - max_angle)
+                otherpenality += endAngleP
+                
+        if "max_endMN_pot" in other_constraints.keys():
+            max_endMN_pot = other_constraints["max_endMN_pot"]
+            endMN_pot = tabMN0[optSet.lineEnd] + tabMN1[optSet.lineEnd]
+            if endMN_pot > max_endMN_pot:
+                endMNpotP = 100 * (endMN_pot - max_endMN_pot)
+                otherpenality += endMNpotP
+        mse += otherpenality
+
     # cost function: coactivation of MN
     line_deb_calc_coact2 = optSet.lineEnd - 1*optSet.rate   # mvt last second
     if min(tabMN0) < 0:
@@ -3012,22 +3034,16 @@ def testquality(optSet, tab, template, msetyp,
         else:
             print("mse", end=' ')
         affiche_liste(msetab[-3:])
-        print("coactP1:", res1[0], end=' ')
-        print("coactP2:", res2[0])
+        print("coactP1: {:4.2f}".format(res1[0]), end=' ')
+        print("coactP2: {:4.2f}".format(res2[0]), end=' ')
+        print("MaxAngleP: {:4.2f}".format(endAngleP), end=' ')
+        print("EndMNpotP: {:4.2f}".format(endMNpotP))
         
 
-        optSet.templateLag = lag * float(optSet.collectInterval)
-        # print(" --> min mse = ", mse, coactpenality, coact, end=' ')
-        # print(" --> min mse = ", mse, end=' ')
     coactpenality = res1[0] + res2[0]
-    coact = res1[1] + res2[1]
-    """
-    if proc_name == "VSCD":
-        mse = NormMeanSquarreErrorTemplate(mvt, template, mvtfirstline,
-                                           optSet.lineStart+20,
-                                           optSet.lineEnd-20, 0)
-    """
-    return [mse, coactpenality, coact, res1, res2]
+    # coact = res1[1] + res2[1]
+
+    return [mse, coactpenality, otherpenality, res1, res2]
 
 
 def getmaxspeed(mvt, line_startMvt2, rate):
@@ -3526,30 +3542,30 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6, other_constraints={}):
     optSet.varmse_startMvt2 = startMvt2
     optSet.varmse_lineStart2 = lineStart2
     duration = endMvt2T - startMvt2
+    slowMvtPenality = 0
     if endMvt2T > optSet.endPos2 - 2:
-        print("movement end = {} => rejected; varmse = 100".format(endMvt2T))
-        mse = 100
-        
+        print("movement end = {} => rejected".format(endMvt2T), end=' ')
+        slowMvtPenality = 100 * (endMvt2T - optSet.endPos2 + 2)
+        print("slowMvtP:{:4.2f}".format(slowMvtPenality))
     # ===============================================================
     """
     # mse = quality[0]  # Modified 2021 june, 17.
-    When running GEP, coact must be calculated on
+    When running GEP, coactpenality must be calculated on
     the new adapted template, not on the original template
-    Now we read mse, coactpenality and coact from the new template
-    and these values are returned to getbehavElts
+    Now we read mse, coactpenality and otherpenality from the new template
+    and these values are returned by getbehavElts
     """
-    # mse = quality[0]
-    # coactpenality = quality[1]
-    # coact = quality[2]
-    [mse, coactpenality, coact, res1, res2] = quality
+    [mse, coactpenality, otherpenality, res1, res2] = quality
+    mse += slowMvtPenality
     """
     # Modified 2021 August, 16. replacement of speedMvt2 by max_speed
     return [startangle, endangle, oscil1, oscil2, speedMvt2,
             end_mvt2 + timestart, end_mvt2 + timestart - optSet.startMvt2,
             mse, coactpenality, coact]
+    # Modified 2024 December 20, otherpenality is returned instead of coact
     """
     return [startangle, endangle, oscil1, oscil2, max_speed,
-            endMvt2T, duration, mse, coactpenality, coact, res1, res2]
+            endMvt2T, duration, mse, coactpenality, otherpenality, res1, res2]
 
 
 ###########################################################################
@@ -4104,8 +4120,9 @@ def runSimMvt(folders, model, optSet, projMan,
     # behavElts = getbehavElts(optSet, tab)[:-2]
     behavElts = getbehavElts(optSet, tab,
                              other_constraints={'max_endangle': 115})
-    mse, coactpenality, coact = quality[0], quality[1], quality[2]
+    mse, coactpenality, otherpenality = quality[0], quality[1], quality[2]
     # destdir = folders.animatlab_rootFolder + "ChartResultFiles/"
+    # Note: otherpenality is already included in mse (in testQuality)
     err = mse+coactpenality
     txt = "err:{:4.4f}; mse:{:4.4f}; coactpenality:{}"
     comment = txt.format(err, mse, coactpenality)
@@ -4157,19 +4174,20 @@ def runSimMvt(folders, model, optSet, projMan,
         print("-----------------------------------")
         comment = simFileName + '-{0:d}.asim'.format(numero)
         comment = comment + " " + chartname
-        result = [trial, mse+coactpenality, mse, coactpenality, coact, comment]
+        result = [trial, mse+coactpenality, mse, coactpenality,
+                  otherpenality, comment]
         if optSet.seuilMSETyp == "Var":
             optSet.seuilMSEsave = err
             print("new threshold: ", optSet.seuilMSEsave)
     else:
-        result = [trial, mse+coactpenality, mse, coactpenality, coact]
+        result = [trial, mse+coactpenality, mse, coactpenality, otherpenality]
     writeBestResSuite(folders, fitValFileName, result, 0)
     return [result, vals, tab, behavElts]
 
 
 def prepareTxtOutputFiles(optSet):
     folders = optSet.folders
-    comment = ["trial", "eval", "mse", "coactpenality", "coact"]
+    comment = ["trial", "eval", "mse", "coactpenality", "otherpenality"]
     writeBestResSuite(folders, "CMAeFitCourse.txt", comment, 1)
     deb = 0
     affichParamLimits(optSet.stimParName, optSet.reallower,
@@ -4272,7 +4290,8 @@ def saveCMAEResults(optSet, simSet):
     # add two last lines in "CMAeFitCourse.txt" file
     comment = simFileName + '-{0:d}.asim'.format(numero)
     comment = comment + "; " + dirname
-    titles = ["trial", "eval", "mse", "coactpenality", "coact", comment]
+    titles = ["trial", "eval", "mse",
+              "coactpenality", "otherpenality", comment]
     writeBestResSuite(folders, "CMAeFitCourse.txt", titles, 0)
 
 
@@ -5140,6 +5159,7 @@ def runTrials(win, paramserie, paramserieSlices,
         lst_err.append(err)
         win.lst_bestParNb.append(len(optSet.pairs) + simulNb)
 
+    
     if procName == "GEP":
         print_adapt_tmplate_proc_MSE = 0
         print_adapt_tmplate_proc_varmse = 1
@@ -5241,7 +5261,9 @@ def runTrials(win, paramserie, paramserieSlices,
             quality = testquality(optSet, tab, optSet.template, "",
                                   affich=print_adapt_tmplate_proc_MSE,
                                   other_constraints = {'max_endangle': 115})
-            mse, coactpenality, coact = quality[0], quality[1], quality[2]
+            mse = quality[0]
+            coactpenality = quality[1]
+            otherpenality = quality[2]
             resbehav = getbehavElts(optSet, tab,
                                     print_adapt_tmplate_proc_varmse)
 
@@ -5259,19 +5281,20 @@ def runTrials(win, paramserie, paramserieSlices,
             if procName != "GEP":
                 err = mse+coactpenality
                 txt = "\terr:{:4.4f}; mse:{:4.4f}; coactpenality:{};"
-                txt = txt + " coact:{:4.8f}"
-                comment0 = txt.format(err, mse, coactpenality, coact)
+                txt = txt + " otherpenality:{:4.8f}"
+                comment0 = txt.format(err, mse, coactpenality, otherpenality)
             else:
                 varcoactpenality = resbehav[8]
-                varcoact = resbehav[9]
+                varotherpenality = resbehav[9]
                 err = varmse+varcoactpenality
                 txt = "\terr:{:4.4f}; varmse:{:4.4f}; coactpenality:{};"
-                txt = txt + " coact:{:4.8f}"
-                comment0 = txt.format(err, varmse, varcoactpenality, varcoact)
+                txt = txt + " otherpenality:{:4.8f}"
+                comment0 = txt.format(err, varmse,
+                                      varcoactpenality, varotherpenality)
                 coactpenality = varcoactpenality
-                coact = varcoact
+                otherpenality = varotherpenality
                 
-            resbehav = resbehav[:8]  # remove coactpenality,  coact ...
+            resbehav = resbehav[:8]  # remove coactpenality, otherpenality ...
 
             if verbose > 3:
                 print(comment0)
@@ -5782,7 +5805,7 @@ def testVarMsePlot(optSet, chartFullName, interval=1./6):
     # ================================================================
     startangle, endangle, oscil1, oscil2, max_speed = behavElts[:5]
     endMvt2, duration = behavElts[5:7]
-    mse, coactpenality, coact = behavElts[7:10]
+    mse, coactpenality, otherpenality = behavElts[7:10]
     res1, res2 = behavElts[-2:]
     coact1, coact2 = res1[0], res2[0]
     # chartName = chartFullName[chartFullName.find("GEP_chart"):]

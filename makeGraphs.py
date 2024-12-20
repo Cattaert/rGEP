@@ -292,6 +292,11 @@ Modified July 17, 2024 (D. Cattaert):
     "construct_df_par_bhv_remains":
         new line added after the folders have been selected: 
             self.new_run_dir = self.graph_path
+Modified December 20, 2024 (D. Cattaert):
+    Bug fixed in method "build_df_chart()" (self.mydir was not known):
+        if self.mydir == '':
+            self.mydir = self.graph_path
+        df_chart.to_csv(self.mydir + '/charts_infos.csv')
 """
 import os
 from os import listdir
@@ -7039,7 +7044,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         df_behav = df_behav[ampl_OK]
         df_param = df_param[ampl_OK]
 
-        # ========    selection of data by coact level   =========
+        # ========    selection of data by coactP level   =========
         # print(df_behav)
         coact_OK = df_behav['coactpen'] < max_coactpenalty
         df_behav = df_behav[coact_OK]
@@ -8436,6 +8441,9 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                 columns=['chart', 'varmse', 'startangle',
                                          'ampl', 'max_speed', 'dur_mvt2',
                                          'origine', 'run_rg'])
+        if self.mydir == '':
+            self.mydir = self.graph_path
+        
         df_chart.to_csv(self.mydir + '/charts_infos.csv')
         print(df_chart)
         return df_chart

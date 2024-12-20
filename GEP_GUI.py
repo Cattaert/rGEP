@@ -100,6 +100,8 @@ import numpy as np
 import pandas as pd
 import copy
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+# mpl.use('TkAgg')
 # import seaborn as sns
 
 import class_animatLabModel as AnimatLabModel
@@ -361,6 +363,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             self.xparName.append(name)
         for par in range(self.nbpar):
             self.xparNameDict[self.xparName[par]] = par
+        
         self.param_to_graph = []
         self.parx = 0   # default parameter to plot as x
         self.pary = 1   # default parameter to plot as y
@@ -1070,7 +1073,8 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     def plotPar_Coact_Mvt(self, plot=0):
         """
         This method actualizes graphic windows on screen :
-        Plots params and mse-coact dots (using self.plotSetParam_mseCoact),
+        Plots params and mse-coactpenality dots using
+            self.plotSetParam_mseCoact),
         plots movements (using self.plotMvtSet)
         plots behaviors (using self.plotBhvSet)
         """
@@ -1902,7 +1906,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         df_behav = df_behav[ampl_OK]
         df_param = df_param[ampl_OK]
 
-        # ========    selection of data by coact level   =========
+        # ========    selection of data by coactP level   =========
         # print(df_behav)
         coact_OK = df_behav['coactpen'] < maxCoactP
         df_behav = df_behav[coact_OK]
@@ -1920,7 +1924,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         plots the duration against the amplitude of movements
         only movements for which    mse < mse_threshold
                                     startangle # 0°
-                                    coact < 0.01
+                                    coactP < 0.01
         """
         listdf_bhv, listdf_par = self.get_df_remain(behavs, pairs,
                                                     startseq, endseq,
@@ -2382,8 +2386,8 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         Z[Z == 0] = -10   # replace all 0 by -10
         fig = plt.figure(figsize=(7, 6), dpi=100)
         nbniv = int(np.amax(Z))
-        # plt.contourf(X, Y, Z, nbniv, cmap='cool')
-        plt.contourf(X, Y, Z, nbniv, cmap=plt.cm.get_cmap('Blues', 30))
+        plt.contourf(X, Y, Z, nbniv, cmap='cool')
+        # plt.contourf(X, Y, Z, nbniv, cmap=mpl.colormaps['Blues'](30))
         plt.colorbar()
         plt.xlabel(nameX)
         plt.ylabel(nameY)
@@ -2563,6 +2567,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             # self.save_paramNames_bhvNames()
             self.btn_GEPrand.setStyleSheet('QPushButton {background-color: #A3C1DA;\
                                                          color: blue;}')
+            self.save_paramNames_bhvNames()
         else:
             print()
             print()
@@ -4130,36 +4135,6 @@ def set_rainbow_colors(win, listdf_bhv):
     return codeCoul_df, lut
 
 
-def saves_chart_asim_aproj(behav, lst_bestchart, procName, preTot, chartdir,
-                           lst_chartName, dstdir):
-    """
-    Function saves_chart_asim_aproj
-        In : behav : a variable containing a summary of the values returned
-            by the searchAlgorihtm
-        This function
-    """
-    # Here we retrieve the error, the mse, the coactPenality, the number of
-    # the simulation in the current batch and the number of the current of
-    # the simulation in the current run
-    [err, mse, CoactP, simSubNb, simulNb] = behav
-    print(simulNb, "-> rang dans le databhv:", end=" ")
-    print(simulNb + len(optSet.pairs))
-    # Here we read the values contained in the last simulation we've done
-    txtchart = readTablo(dstdir, findTxtFileName(model, optSet,
-                                                 preTot, simulNb + 1))
-    lst_bestchart.append(txtchart)
-    # txtchart = self.lst_bestchart[idx]
-    comment = "randParam bestfit:" + str(err)
-    comment += "; mse bestfit:" + str(mse)
-    comment += "; coactBestFit:" + str(CoactP)
-    chart_glob_name = procName + "_chart"
-    chartName = savechartfile(chart_glob_name,
-                              chartdir, txtchart, comment)
-    lst_chartName.append(chartName)
-    text = "... chart files {} saved; {}"
-    print(text.format(chartName, comment))
-
-
 # ============================================================================
 #                               SIMULATIONS
 # ============================================================================
@@ -4251,12 +4226,12 @@ def exec_rand_param(win, runType, optSet, lst_parset=[], typGEP=""):
                                     symbol='o',
                                     symbolBrush=win.mvtcolor)
                 if win.randParEvol == "varmse":
-                    print("best varmse: {} at rg={}\
-                          [MSE,Coact]: {}".format(bestvarmse, pairs_rg,
+                    txt = "best varmse:{} at rg={} [MSE,CoactP]:{}"
+                    print(txt.format(bestvarmse, pairs_rg,
                                                   plotMSECoact))
                 elif win.randParEvol == "MSE":
-                    print("best MSE: {} at rg={}\
-                          [MSE,Coact]: {}".format(closestMseCoact[0],
+                    txt = "best MSE:{} at rg={} [MSE,CoactP]:{}"
+                    print(txt.format(closestMseCoact[0],
                                                   pairs_rg,
                                                   plotMSECoact))
 
@@ -4431,6 +4406,14 @@ def exec_rand_param(win, runType, optSet, lst_parset=[], typGEP=""):
     win.save_pairs(runType)
 
 
+
+# TODO : continuer l'implementation et tester
+"""
+ATTENTION NOuvelle procedure non encore testée
+L'autre possibilité serait d'utiliser win.run_selected_param()
+en donnant la liste des rangs des param à utiliser () 
+et le répertoire de destination ()
+"""
 def exec_syst_param(win, optSet):
     """
     Resets the program (prepares a new set of simulations) and Runs
@@ -4539,6 +4522,102 @@ def exec_syst_param(win, optSet):
     win.startSet = []
     win.startEval = 0
     # self.prefix = ""
+
+
+
+def exec_list_paramSets(paramserie):
+    nbRandTrial = 1
+    datastructure = optSet.datastructure  # dictionary for data structure
+    if len(datastructure) > 0:
+        structNb = len(datastructure)
+        lastinfo = datastructure[structNb-1]
+        lastrun = lastinfo[2]
+    else:
+        structNb = 0
+        lastrun = 0
+    org = win.getNbPacket(int(win.valueLine1a.text()),  # Nbof processors
+                          len(paramserie))             # Nb of param sets
+    nbEpochParam, nbRunParam, paramserieSlicesAllEpochs = org
+    bestparamList = []
+    bestchartList = []
+    besterrList = []
+    win.err = []
+    win.tabBehavElts = []
+    runType = "GEPrand"
+    procName = "GEP"
+    for epoch in range(nbEpochParam):
+        listpairs = []
+        paramserieSlices = paramserieSlicesAllEpochs[epoch]
+        # ==========================================================
+        result = runTrials(win, paramserie, paramserieSlices,
+                           savechart=1, procName=procName,
+                           runType=runType,
+                           randParEvol=win.randParEvol)   
+        # ==========================================================
+        mse_coact = result[0]
+        lst_err = result[2]
+        tabBehavElts = result[3]  # list of behaviour variables sets
+        for idx in range(nbRunParam[epoch]):
+            pair_param_mseCoact = np.concatenate([paramserie[idx],
+                                                  mse_coact[idx]])
+            behav = tabBehavElts[idx]
+            # print idx, behav
+            win.add_pair(pair_param_mseCoact, behav)
+            listpairs.append(pair_param_mseCoact)
+        df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        win.test_for_save_map_bhv(df_bhvremain, affich=1)
+
+        # ====    creates a dataframe from tabBehavElts   ======
+        """
+        # ["mse", "coactpen", "startangle", "endangle", "oscil1",
+        #  "oscil2", "max_speed", "end_mvt2", "duree", "varmse"]
+        """
+        nptabBehavElts = np.array(tabBehavElts)
+        np_pairs = np.array(listpairs)
+        win.plotBhvSet(nptabBehavElts, np_pairs, 0, nbRunParam[epoch])
+        for err in lst_err:
+            win.err.append(err)
+        win.tabBehavElts.append(tabBehavElts)
+
+        for idx, chartName in enumerate(win.lst_chartName):
+            bestchartList.append(chartName)
+            besterrList.append(win.err[idx])
+            bestparamList.append(win.lst_bestParNb[idx])
+        win.startEval = win.previousStartEval
+        # saveBestpairtoAproj(self, optSet, "")
+    print("===================================================")
+    print("    End of", nbRandTrial, runType, "parameter runs")
+    print("===================================================")
+    packetsize = win.packetRand
+    if min(win.listspanVal) != max(win.listspanVal):
+        conditions = [["DicSpanVal.txt"],
+                      [optSet.xCoactPenality1, optSet.xCoactPenality2],
+                      besterrList, bestchartList, bestparamList,
+                      [optSet.gravity]]
+    else:
+        conditions = [optSet.spanStim, optSet.spanSyn,
+                      [optSet.xCoactPenality1, optSet.xCoactPenality2],
+                      besterrList, bestchartList, bestparamList,
+                      [optSet.gravity]]
+    mise_a_jour(optSet, datastructure, structNb,
+                runType + "_" + win.randParEvol,
+                lastrun+1, lastrun + nbRandTrial, packetsize,
+                conditions)
+    if len(paramserie) > 9:
+        pre = "0"
+    else:
+        pre = ""
+    
+    cleanChartsFromResultDir(optSet, 1, len(paramserie), pre)
+    subdir = os.path.join("ResultFiles", "tmpBestChart")
+    cleanChartsFromResultDir(optSet, 1, len(paramserie), pre,
+                             directory=subdir)
+    cleanAsimsFromResultDir(optSet, 1, len(paramserie), pre,
+                            directory=subdir)
+    win.startSerie = lastrun
+    print("self.startSerie: ", win.startSerie)
+    win.save_pairs(runType)
+
 
 
 class ShowFileContent(QtWidgets.QMainWindow):
@@ -4688,21 +4767,21 @@ def calculate_coact_from_chart():
     ficname = os.path.split(fname)[-1]
     tab = readTablo(dirname, ficname)
     quality = testquality(optSet, tab, optSet.template, "", affich="MSE")
-    mse, coactpenality, coact = quality[0], quality[1], quality[2]
+    mse, coactpenality, otherpenality = quality[0], quality[1], quality[2]
     txt = "\terr:{:4.4f}; mse:{:4.4f}; coactpenality:{};"
-    txt = txt + " coact:{:4.8f}"
+    txt = txt + " otherpenality:{:4.8f}"
     err = mse+coactpenality
-    comment0 = txt.format(err, mse, coactpenality, coact)
+    comment0 = txt.format(err, mse, coactpenality, otherpenality)
     print(comment0)
 
     resbehav = getbehavElts(optSet, tab, "varmse")
     varmse = resbehav[7]
     varcoactpenality = resbehav[8]
-    varcoact = resbehav[9]
+    varotherpenality = resbehav[9]
     err = varmse+varcoactpenality
     txt = "\terr:{:4.4f}; varmse:{:4.4f}; coactpenality:{};"
-    txt = txt + " coact:{:4.8f}"
-    comment1 = txt.format(err, varmse, varcoactpenality, varcoact)
+    txt = txt + " otherpenality:{:4.8f}"
+    comment1 = txt.format(err, varmse, varcoactpenality, varotherpenality)
     resbehav = resbehav[:8]
     print(comment1)
 
@@ -4737,7 +4816,7 @@ def initAnimatLab(animatsimdir, animatLabV2ProgDir):
             os.makedirs(dirGEPdata)
 
     else:
-        print("No selected directory  run GUI_AnimatLabOptimization.py")
+        print("No selected directory  run GUI_AnimatPar.py")
         return [False]
 
     if animatsimdir != "":
@@ -4917,7 +4996,7 @@ if __name__ == '__main__':
         optSet.gravity = gravity
         win.editValueGravity.setText(str(optSet.gravity))
         print("Nb parameters:", win.nbpar)
-        win.save_paramNames_bhvNames()
+        # win.save_paramNames_bhvNames()
         win.save_neuron_properties()
         win.animatsimdir = animatsimdir
         # Start Qt event loop unless running interaction mode or using pyside
