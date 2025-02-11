@@ -26,10 +26,32 @@ Modified February 28, 2023 (D. Cattaert):
     get_elts_GEP_procedure() has been changed similarly.
 Modifie (D. Cattaert):
     A default ID name is now Proposed
+            in VSCD_tool_box.py called by GEP_GUI (MaFenetre)
+Modified February 10, 2025 (D.Cattaert):
+    other_constraints dictionary is now red from optSet.other_constraints and
+    its parameters can be activated or deactivated in a new procedure
+    set_other_constraints()
+    The values of the chosen parameters can be modified in the process of
+    building the scriptFile. If no other parameters were retained by the user,
+    the line "other_constraints" contains only "None"
+    other_constraints is used to define the cost function additional
+    constraints such as "max_endangle"  and  "max_endMN_pot"
+    Additional constraints may be added on demand, by adding the new
+    constraints names in optSet.other_constraints_names list
+    and their default values in optSet.other_constraints
+    controlScript.py, optimization.py and animatlabOptimSetting.py have been
+    modified accordingly.
+Modified February 11, 2025 (D. Cattaert):
+    When a new script for GEP is created, the cost function parameters are
+    taken from the new root directory name... for eample:
+        "NS32NG_52(sim)_ID222NGC_bhvMSpeed_cP100_100_MAng115EndMNV-60"
+    A CSV file ("CostFunctionParam.csv") containing all costFunction paramters
+    is created in the base directory (in the resultfile folder)
 """
 
 import os
 import tkinter, tkinter.filedialog
+import csv
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
@@ -193,6 +215,38 @@ def get_control_script_filename(scriptFile_name):
     return  scriptFile_name
 
 
+def set_other_constraints(other_constraints):
+    otherconstraints_names = optSet.otherconstraints_names
+    dicValues = other_constraints
+    selected = list(dicValues.keys())
+    typ = "Other constraints"
+    text = "select other constraints"
+    choice = choose_elements_in_list(otherconstraints_names,
+                                     typ, selected, text)
+    newdicValues = {}
+    for key in choice:
+        if key in dicValues.keys(): 
+            newdicValues[key] = dicValues[key]
+        else:
+            newdicValues[key] = 0
+    if newdicValues != {}:   
+        dicValues = set_values_in_list(newdicValues, selected, typ, text)
+    else:
+        dicValues = {}
+    other_constraints = dicValues
+    print(other_constraints)
+    optSet.other_constraints = other_constraints
+    oc = ""
+    if other_constraints != {}:
+        for key in other_constraints.keys():
+            if key == 'max_endangle':
+                oc += "MAng{}".format(int(other_constraints[key]))
+            if key == "max_endMN_pot":
+                oc += "EndMNV{}".format(int(other_constraints[key]*1000))
+    return other_constraints, oc
+
+
+
 def get_elts_optim_procedure(model_short_ID, base_path):
     # ================= OPTIMIZATION to get seeds ============================
     base_root = os.path.split(base_path)[0]
@@ -208,6 +262,8 @@ def get_elts_optim_procedure(model_short_ID, base_path):
     title = "Choose one Optimization method"
     optimiz = choose_one_element_in_list(title, list_elem, typ)
     print("optimization method:", optimiz)
+    other_constraints = optSet.other_constraints
+    other_constraints, oc = set_other_constraints(other_constraints)
 
     if optimiz == "CMAes":
         dicValues = {'coactP1':cP1, 'coactP2':cP2, 'sigma':0.01,
@@ -231,14 +287,15 @@ def get_elts_optim_procedure(model_short_ID, base_path):
         if coactP2 > 5:
             coactP2 = int(coactP2)
         cP = "cP{}_{}".format(str(coactP1), str(coactP2))
-        scriptFile_name += "_" + cP + ".txt"
+        scriptFile_name += "_" + cP + oc + ".txt"
         scriptFile_name = get_control_script_filename(scriptFile_name)
         s = "cmaes" + '\t' + "xCoactPenality1=" + str(coactP1) + '\t'
         s += "xCoactPenality2=" + str(coactP2) + '\t'
         s += "threshold=Var" + '\t' + "cmaes_sigma=" 
         s += str(dicValues["sigma"]) + '\t' 
         s += "nbTotCMAesRuns=" + str(int(dicValues["nbRuns"])) + '\n'
-        txt_optimiz = s
+        txt_optimiz = s    
+
     elif optimiz == "VSCD":
         dicValues = {'coactP1':cP1, 'coactP2':cP2, 'deltacoeff':0.01,
                      'nbsteps':3, 'nbepoch':2, 'span':100}
@@ -261,7 +318,7 @@ def get_elts_optim_procedure(model_short_ID, base_path):
         if coactP2 > 5:
             coactP2 = int(coactP2)
         cP = "cP{}_{}".format(str(coactP1), str(coactP2))
-        scriptFile_name += "_" + cP + ".txt"
+        scriptFile_name += "_" + cP + oc + ".txt"
         scriptFile_name = get_control_script_filename(scriptFile_name)
         s = "VSCD" + '\t' + "xCoactPenality1=" + str(coactP1) + '\t'
         s += "xCoactPenality2=" + str(coactP2) + '\t'
@@ -269,7 +326,7 @@ def get_elts_optim_procedure(model_short_ID, base_path):
         s += "nbsteps=" + str(int(dicValues["nbsteps"])) + '\t' 
         s += "nbepoch=" + str(int(dicValues["nbepoch"])) + '\n'
         txt_optimiz = s
-    return optimiz, txt_optimiz, scriptFile_name, cP, span
+    return optimiz, txt_optimiz, scriptFile_name, cP, oc, span, dicValues
 
 
 def get_elts_GEP_procedure(model_short_ID, base_path):
@@ -308,7 +365,8 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
         base_root_name = os.path.split(base_root)[-1]
         prev_cP = base_root_name[base_root_name.find("cP"):]
         cP1 = int(prev_cP[2:prev_cP.find("_")])
-        cP2 = int(prev_cP[prev_cP.find("_")+1:])
+        prev_cP2 = prev_cP[prev_cP.find("_")+1:]
+        cP2 = int(prev_cP2[:prev_cP2.find("_")])
     dicValues = {'coactP1':cP1, 'coactP2':cP2, 'neighbours':1, 'auto':1,
                  'nbextend':100, 'nbfill':20}
     selected = list(dicValues.keys())
@@ -329,7 +387,29 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
     if coactP2 > 5:
         coactP2 = int(coactP2)
     cP = "cP{}_{}".format(str(coactP1), str(coactP2))
-
+    # other_constraints = optSet.other_constraints
+    # other_constraints, oc = set_other_constraints(other_constraints)
+    other_constraints = {}
+    oc = ""
+    remain = prev_cP2[prev_cP2.find("_")+1:]
+    otherConst = []
+    if remain != "":
+        oc = remain
+        balises_lst = ["MAng", "EndMNV"]
+        OC_lst = []
+        for idx, bal in enumerate(balises_lst):
+            OC_lst.append(remain.find(bal))
+        idy = 0
+        while idy < len(OC_lst)-1:
+            otherConst.append(remain[OC_lst[idy]:OC_lst[idy+1]])
+            idy += 1
+        otherConst.append(remain[OC_lst[idy]:])
+        for idx, chain in enumerate(otherConst):
+            if chain[0:4] == "MAng":
+                other_constraints["max_angle"] = chain[4:]
+            if chain[0:6] == "EndMNV":
+                other_constraints["max_endMN_pot"] = float(chain[6:])/1000
+        optSet.other_constraints = other_constraints
     # previousanimatsimdir = readAnimatLabDir()
     seeds_txt = seeds_dirname[seeds_dirname.find('seed'):]
     scriptFile_name = "rGEP" + "_" + model_short_ID
@@ -341,7 +421,7 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
         scriptFile_name += "_" +"span" + str(span)
     else:
         scriptFile_name += "_" +"spanAuto"
-    scriptFile_name += "_" + cP + ".txt"
+    scriptFile_name += "_" + cP + oc + ".txt"
     scriptFile_name = get_control_script_filename(scriptFile_name)
     s = "GEPrand" + '\t' + "xCoactPenality1=" + str(coactP1) + '\t'
     s += "xCoactPenality2=" + str(coactP2) + '\t'
@@ -349,8 +429,7 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
     s += "nbextend=" + str(int(dicValues["nbextend"])) + '\t'
     s += "nbfill=" + str(int(dicValues["nbfill"])) + '\n'
     txt_GEP = s
-
-    return txt_GEP, scriptFile_name, cP, span, seeds_dirname
+    return txt_GEP, scriptFile_name, cP, oc, span, seeds_dirname
 
 
 def get_model_caracteristics(optSet, modeldirname, root_path):
@@ -370,7 +449,7 @@ def get_model_caracteristics(optSet, modeldirname, root_path):
         model_short_ID = txt1[:txt1.find("_")]
     model_short_ID = winscr.editText("Model shortID", "Edit shortID",
                                      model_short_ID)
-    model_identification = model_short_ID + "_WM1aDyn20_B150"
+    model_identification = model_short_ID # + "_WM1aDyn20_B150"
     model_identification = winscr.editText("Model caracteristics",
                                            "Edit caracteristics",
                                            model_identification)
@@ -402,13 +481,13 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
     cwd = os.getcwd()
     scriptFile_path = os.path.join(cwd, "Script_files")
     rep2 = get_elts_optim_procedure(model_short_ID, base_path)
-    optimiz, txt_optimiz, scriptFile_name, cP, span = rep2
+    optimiz, txt_optimiz, scriptFile_name, cP, oc, span, dicValues = rep2
     if bhvCriteria == "maxSpeed":
         bhvord = "bhvMSpeed"
     else:
         bhvord = "bhvDuration"
     model_completeidentification = modeldirname + "_" + model_identification
-    model_completeidentification += "_" + bhvord + "_" + cP
+    model_completeidentification += "_" + bhvord + "_" + cP + "_" + oc
     newmodel_root = root_path + "/" + model_completeidentification
     newbase_dirname = "0_" + model_short_ID + "_base"
     newbase_path = newmodel_root + "/" + newbase_dirname
@@ -418,7 +497,16 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
         os.makedirs(newbase_path)
         copyDirectory(model_path, newbase_path)
         print(newbase_path, "created")
-        
+    other_constraints = optSet.other_constraints
+    costFunctionDic = dicValues
+    costFunctionDic.update(other_constraints)
+    dicCostFileName = "CostFunctionParam.csv"
+    CompleteDicCostFileName = newbase_path + "/ResultFiles/" + dicCostFileName
+    with open(CompleteDicCostFileName, "w", newline="") as f:
+        w = csv.DictWriter(f, costFunctionDic.keys())
+        w.writeheader()
+        w.writerow(costFunctionDic)    
+    
     if optimiz == "CMAes":
         completename = os.path.join(scriptFile_path, scriptFile_name)
         if not os.path.exists(scriptFile_path):
@@ -440,6 +528,17 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
             s4 = "bhvCriteria" + "\t" + "bhv_ordinate=" + bhvCriteria + "\n"
             print(s4)
             f.write(s4)
+            oc_txt = "other_constraints"
+            if other_constraints == {}:
+                oc_txt += '\t' + 'None\n'
+            else:
+                oc_txt += '\t'
+                for key in other_constraints.keys():
+                    print(key)
+                    oc_txt += key + '=' + str(other_constraints[key]) + '\t'
+                oc_txt = oc_txt[:-1]    # suppress the last '\t' 
+                oc_txt += '\n'
+            f.write(oc_txt)
             s5 = txt_optimiz
             print(s5)
             f.write(s5)
@@ -448,7 +547,7 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
             f.write(s6)
             s7 = "transfert_from_workDir" + "\t" + "PathDest="
             s7 += newmodel_root + "/" + "1_CMAes_" + model_short_ID + "_"
-            s7 += "span" + str(span) + "_" + cP + "\n"
+            s7 += "span" + str(span) + "\n"
             print(s7)
             f.write(s7)
             f.close()
@@ -471,6 +570,17 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
             s4 = "bhvCriteria" + "\t" + "bhv_ordinate=" + bhvCriteria + "\n"
             print(s4)
             f.write(s4)
+            oc_txt = "other_constraints"
+            if other_constraints == {}:
+                oc_txt += '\t' + 'None\n'
+            else:
+                oc_txt += '\t'
+                for key in other_constraints.keys():
+                    print(key)
+                    oc_txt += key + '=' + str(other_constraints[key]) + '\t'
+                oc_txt = oc_txt[:-1]    # suppress the last '\t' 
+                oc_txt += '\n'
+            f.write(oc_txt)
             s5 = txt_optimiz
             print(s5)
             f.write(s5)
@@ -479,7 +589,7 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
             f.write(s6)
             s7 = "transfert_from_workDir" + "\t" + "PathDest="
             s7 += newmodel_root + "/" + "1_VSCD_" + model_short_ID + "_"
-            s7 += "span" + str(span) + "_" + cP + "\n"
+            s7 += "span" + str(span) + "\n"
             print(s7)
             f.write(s7)
             f.close()
@@ -494,7 +604,7 @@ def write_GEP_scriptFile(optSet, root_path, modeldirname):
     cwd = os.getcwd()
     scriptFile_path = os.path.join(cwd, "Script_files")
     rep2 = get_elts_GEP_procedure(model_short_ID, base_path)
-    txt_GEP, scriptFile_name, cP, span, seeds_dirname = rep2
+    txt_GEP, scriptFile_name, cP, oc, span, seeds_dirname = rep2
     if seeds_dirname[seeds_dirname.find("seeds"):] != "":
         seeds = seeds_dirname[seeds_dirname.find("seeds"):]
     else:
@@ -504,7 +614,7 @@ def write_GEP_scriptFile(optSet, root_path, modeldirname):
     else:
         bhvord = "bhvDuration"
     model_completeidentification = modeldirname + "_" + model_identification
-    model_completeidentification += "_" + bhvord + "_" + cP
+    model_completeidentification += "_" + bhvord + "_" + cP + "_" + oc
     newmodel_root = root_path + "/" + model_completeidentification
     seeds_path = newmodel_root + "/" + seeds_dirname
     completename = os.path.join(scriptFile_path, scriptFile_name)
@@ -513,6 +623,7 @@ def write_GEP_scriptFile(optSet, root_path, modeldirname):
     titre = "Graphics Builder"
     info = "Do you want Graphics?"
     rep3 = dialogWindow(titre, info, details="")
+    other_constraints = optSet.other_constraints
 
     with open(completename, 'w') as f:
         s0 = "create_workDir" + "\t" + "Path=" + newmodel_root + "/" + "\t"
@@ -531,6 +642,17 @@ def write_GEP_scriptFile(optSet, root_path, modeldirname):
         s4 = "bhvCriteria" + "\t" + "bhv_ordinate=" + bhvCriteria + "\n"
         print(s4)
         f.write(s4)
+        oc = "other_constraints"
+        if other_constraints == {}:
+            oc += '\t' + 'None\n'
+        else:
+            oc += '\t'
+            for key in other_constraints.keys():
+                print(key)
+                oc += key + '=' + str(other_constraints[key]) + '\t'
+            oc = oc[:-1]    # suppress the last '\t' 
+            oc += '\n'
+        f.write(oc)
         s5 = txt_GEP
         print(s5)
         f.write(s5)

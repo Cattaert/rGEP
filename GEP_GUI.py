@@ -200,6 +200,11 @@ from DialogChoose_in_List import InfoWindow
 from DialogChoose_in_List import Enter_Values
 from DialogChoose_in_List import DialogBoxValues
 
+from GUI_AnimatPar import readColIntervalFromAform
+from GUI_AnimatPar import changeCollIntervalAform
+from GUI_AnimatPar import readColIntervalFromAsim
+from GUI_AnimatPar import changeCollIntervalAsim
+
 import mvt_GUI
 import bhv_GUI
 import param_GUI
@@ -4784,6 +4789,31 @@ def calculate_coact_from_chart():
     comment1 = txt.format(err, varmse, varcoactpenality, varotherpenality)
     resbehav = resbehav[:8]
     print(comment1)
+
+def check_collectInterval(dirname):
+    chartNames = []
+    for ficname in os.listdir(dirname):
+        if ficname.endswith("aform"):
+            # print(ficname)
+            chartNames.append(ficname)
+    if len(chartNames) > 0:
+        for aformFile in chartNames:
+            chartPathName = dirname + "/" + aformFile
+            collIntervalAform = readColIntervalFromAform(chartPathName)
+            if collIntervalAform != '0.01':
+                changeCollIntervalAform(chartPathName)
+
+    asimNames = []
+    for simname in os.listdir(dirname):
+        if simname.endswith("asim"):
+            print(simname)
+            asimNames.append(simname)
+    if len(asimNames) > 0:
+        for asimFile in asimNames:
+            asimPathName = dirname + "/" + asimFile
+            collIntervalAsim = readColIntervalFromAsim(asimPathName)
+            if collIntervalAsim != '0.01':
+                changeCollIntervalAsim(asimPathName)
 
 
 def initAnimatLab(animatsimdir, animatLabV2ProgDir):

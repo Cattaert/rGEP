@@ -361,7 +361,9 @@ class OptimizeSimSettings():
         self.neuronFRNames = []
         for i in range(len(self.tab_neuronsFR)):
             self.neuronFRNames.append(self.tab_neuronsFR[i][0])
-
+        self.other_constraints = {'max_endangle': 115,
+                                  'max_endMN_pot': -0.061}
+        self.otherconstraints_names = ['max_endangle', 'max_endMN_pot']
         # ################################################################
         #                   ATTENTION !!!
         for phase in range(len(self.allPhasesStim)):
@@ -419,6 +421,8 @@ class OptimizeSimSettings():
         self.timeMes = self.paramMarquez['timeMes']
         self.delay = self.paramMarquez['delay']
         self.eta = self.paramMarquez['eta']
+        
+        
 
     def actualizeparamVSCD(self):
         print()

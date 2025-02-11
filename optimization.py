@@ -119,6 +119,46 @@ Mofified December 20, 2024 (D. Cattaert):
           print("movement end = {} => rejected; varmse = 100".format(endMvt2T))
           slowMvtPenality = 100 * (endMvt2T - optSet.endPos2 + 2)
         slowMvtPenality is now included in mse
+Mofified January 20, 2025 (D. Cattaert):
+    "otherPenality" is now a dictionnay including all ither penalities:
+        max-endangleP, End_<MN0 Name>_P, End_<MN1 Name>_P...
+    "otherPenality" is retruned by the procedure testQuality:
+        return [mse, coactpenality, otherpenality, res1, res2]
+    
+    Procedure testVarMsePlot modified consequently:
+      otherpenality dictionary is used to print the 2nd title line
+Modified January 24, 2025 (D. Cattaert):
+    Procedure  savechartfile(name, directory, chart, comment) modifed
+        to include in first line:
+            "GEP_chartXX.txt; lasts parts of the path;" + comment
+            comment can be :"mse:8.0910; coactP:0.0"
+            or something else depending on the procedure that calls it.
+    In previous version, the first line was:
+        instead of:
+            (GEP_chart01.txt; randParam bestfit:74.1990; mse bestfit:31.555;
+                coactBestFit:42.64327047777737)
+    This procedure is used in:
+        runSimMvt() function called by CMAes
+        runTrials() that includes a procedure saves_chart_asim_aproj() that has
+            been modified accordingly
+        runMarquez()
+        saveBestChart() called by exec_VSCD() called by exec_VSCD_from_gui
+            in VSCD_tool_box.py called by GEP_GUI (MaFenetre)
+Modified February 10, 2025 (D.Cattaert):
+    other_constraints dictionary is now red from optSet.other_constraints in:
+        runTrials() (function called by do_GEP_rand() of the class MaFenetre
+                     which is used for RandPar and GEPrand)
+        runSimMvt() (function called by CMAes)
+     other_constraints is used to define the cost function additional
+     constraints such as "max_endangle"  and  "max_endMN_pot"
+     Additional constraints may be added on demand, by adding the new
+     constraints names in optSet.other_constraints_names list
+     and their default values in optSet.other_constraints
+     
+Modified February 11, 2025 (D. Cattaert):
+    other_constraints is now directly red from optSet.other_constraints in
+    the procedure testquality()
+
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -2038,8 +2078,16 @@ def savechartfile(name, directory, chart, comment):
     # copy(folders.animatlab_result_dir + txtchartname)
     if chart != []:
         chartname = name + txtnumber + ".txt"
-        text = chartname + "; " + comment
-        print("saving charttxt  file... " + name + "{}.txt".format(txtnumber), end=' ')
+        rootname = os.path.split(directory)[0]
+        expename2 = os.path.split(rootname)[1]
+        split2 = os.path.split(rootname)[0]
+        expename1 = os.path.split(split2)[1]
+        split1 = os.path.split(split2)[0]
+        expename0 = os.path.split(split1)[1]
+        experoot = expename0 + "/" + expename1 + "/" + expename2 
+        text = chartname + ";  " + experoot + "; " + comment
+        print("saving charttxt  file... " + name + "{}.txt".format(txtnumber),
+              end=' ')
         f = open(destfilename, 'w')
         f.write(str(text + '\n'))
         for i in range(len(chart)):
@@ -2603,7 +2651,7 @@ def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
     # ampl = max(data) - data[mvtfirstline]
     ampl = data[lineEnd] - data[mvtfirstline]
     if ampl < 0.1:
-        mse=1000
+        mse=101
         return mse
     normdata = [z*normAmpl/ampl for z in data]
     normtemplate = [[x, y, z*normAmpl/ampl] for [x, y, z] in template]
@@ -2615,7 +2663,7 @@ def NormMeanSquarreErrorTemplate(data, template, mvtfirstline,
         n = n + 1
         Sum_sqr += (normdata[x] - normtemplate[x+lag+mvtfirstline][2])**2
     mse = Sum_sqr/n
-    # mse = mse*1000  # to keep compatibility with previous mse calculation
+    # mse = mse*100  # to keep compatibility with previous mse calculation
     # use n instead of (n-1) if want to compute the exact
     # variance of the given data
     # use (n-1) if data are samples of a larger population
@@ -2897,8 +2945,8 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
             MN1 = 0
         else:
             MN1 = MN1 - activThr
-        normMN0 = MN0/(0.030)  # /0.03  => normalize in range [0, 1]
-        normMN1 = MN1/(0.030)  # /0.03  => normalize in range [0, 1]
+        normMN0 = MN0/(3)  # /0.03  => normalize in range [0, 1]
+        normMN1 = MN1/(3)  # /0.03  => normalize in range [0, 1]
         coact = normMN0 * normMN1
     else:
         for x in range(lineStart, lineEnd):
@@ -2912,8 +2960,8 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
                 MN1 = 0
             else:
                 MN1 = MN1 - activThr
-            normMN0 = MN0/(0.030)  # /0.03  => normalize in range [0, 1]
-            normMN1 = MN1/(0.030)  # /0.03  => normalize in range [0, 1]
+            normMN0 = MN0/(3)  # /0.03  => normalize in range [0, 1]
+            normMN1 = MN1/(3)  # /0.03  => normalize in range [0, 1]
             coact += normMN0 * normMN1
             actMN0 += normMN0
             actMN1 += normMN1
@@ -2922,8 +2970,7 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
     return [coactpenality, coact, actMN0, actMN1]
 
 
-def testquality(optSet, tab, template, msetyp,
-                affich=1, other_constraints = {}):
+def testquality(optSet, tab, template, msetyp,affich=1):
     """
     Function testquality
         In : optSet :The object
@@ -2940,10 +2987,10 @@ def testquality(optSet, tab, template, msetyp,
     at two time intervals: [lineStart1, lineEnd1] and [lineStart2, lineEnd2]
     stored in optSet object.
     """
-    other_constraints = {}
-    other_constraints["max_endangle"] = 115
-    other_constraints["max_endMN_pot"] = -0.060
-
+    # other_constraints = {}
+    # other_constraints["max_endangle"] = 115
+    # other_constraints["max_endMN_pot"] = -0.061
+    other_constraints = optSet.other_constraints
     
     max_lag = 100
     # mvt = tab[:][optSet.mvtcolumn]
@@ -2952,11 +2999,13 @@ def testquality(optSet, tab, template, msetyp,
     timestart = extractCol(tab, 1)[0]
     mvtfirstline = int(timestart/float(optSet.collectInterval))
     tabMN0 = extractCol(tab, optSet.mnColChartNbs[0])
+    MN0_name = optSet.mnColChartNames[0]
     tabMN1 = extractCol(tab, optSet.mnColChartNbs[1])
+    MN1_name = optSet.mnColChartNames[1]
     coactpenality = 0.
     endAngleP = 0.
     endMNpotP = 0.
-    otherpenality = 0.
+    otherP = 0.
     # quality = variance(mvt)
     lag = -max_lag
     dmse = 0
@@ -2993,23 +3042,39 @@ def testquality(optSet, tab, template, msetyp,
             slide += "/"
     optSet.templateLag = lag * float(optSet.collectInterval)
     mse = min(msetab)
-    
-    if other_constraints != {}:
+
+    otherpenality = {}
+    if other_constraints != {}:        
+        otherpenality["max_endangleP"] = 0
         if "max_endangle" in other_constraints.keys():
             max_angle = other_constraints["max_endangle"]
             end_angle = mvt[optSet.lineEnd]
             if  end_angle > max_angle:
-                endAngleP = 100 * (end_angle - max_angle)
-                otherpenality += endAngleP
+                endAngleP = 1 * (end_angle - max_angle)
+                otherP += endAngleP
+                otherpenality["max_endangleP"] = endAngleP
                 
         if "max_endMN_pot" in other_constraints.keys():
             max_endMN_pot = other_constraints["max_endMN_pot"]
-            endMN_pot = tabMN0[optSet.lineEnd] + tabMN1[optSet.lineEnd]
-            if endMN_pot > max_endMN_pot:
-                endMNpotP = 100 * (endMN_pot - max_endMN_pot)
-                otherpenality += endMNpotP
-        mse += otherpenality
+            endMN0_pot = tabMN0[optSet.lineEnd]
+            endMN1_pot = tabMN1[optSet.lineEnd]
+            MN0P = "End_" + MN0_name + "_P"
+            MN1P = "End_" + MN1_name + "_P"
+            otherpenality[MN0P] = 0
+            otherpenality[MN1P] = 0
+            if endMN0_pot > max_endMN_pot:
+                endMN0potP = 1000 * (endMN0_pot - max_endMN_pot)
+                otherP += endMN0potP
+                otherpenality[MN0P] = endMN0potP
+                endMNpotP = endMN0potP
+            if endMN1_pot > max_endMN_pot:
+                endMN1potP = 1000 * (endMN1_pot - max_endMN_pot)
+                otherP+= endMN1potP
+                otherpenality[MN1P] = endMN1potP
+                endMNpotP += endMN1potP
+        mse += otherP
 
+            
     # cost function: coactivation of MN
     line_deb_calc_coact2 = optSet.lineEnd - 1*optSet.rate   # mvt last second
     if min(tabMN0) < 0:
@@ -3039,6 +3104,7 @@ def testquality(optSet, tab, template, msetyp,
         print("MaxAngleP: {:4.2f}".format(endAngleP), end=' ')
         print("EndMNpotP: {:4.2f}".format(endMNpotP))
         
+        # print(otherpenality)
 
     coactpenality = res1[0] + res2[0]
     # coact = res1[1] + res2[1]
@@ -3414,7 +3480,7 @@ def searchStartMvt2(mvt, time, line_startMvt2, rate):
 
 
 # TODO : to be continued
-def getbehavElts(optSet, tab, affich=0, interval=1./6, other_constraints={}):
+def getbehavElts(optSet, tab, affich=0, interval=1./6):
     """
     Function getbehavElts
         In : optSet : The object
@@ -3531,8 +3597,7 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6, other_constraints={}):
                                  startMvt2, endMvt2T,
                                  endangle, optSet.endPos2)
     # =====================================================================
-    quality = testquality(optSet, tab, tmplate, "varmse", affich=affich,
-                          other_constraints=other_constraints)
+    quality = testquality(optSet, tab, tmplate, "varmse", affich=affich)
     # =====================================================================
     optSet.varmse_tmplate = tmplate
     optSet.time_midMvt2T = time_midMvt2T
@@ -4111,15 +4176,14 @@ def runSimMvt(folders, model, optSet, projMan,
     if affiche == 1:
         print(simSet.samplePts)
     """
+    
     projMan.make_asims(simSet)
     projMan.run(cores=-1)
     tab = readTabloTxt(folders.animatlab_result_dir,
                        findTxtFileName(model, optSet, "", 1))
-    quality = testquality(optSet, tab, optSet.template, "",
-                          other_constraints={'max_endangle': 115})
+    quality = testquality(optSet, tab, optSet.template, "")
     # behavElts = getbehavElts(optSet, tab)[:-2]
-    behavElts = getbehavElts(optSet, tab,
-                             other_constraints={'max_endangle': 115})
+    behavElts = getbehavElts(optSet, tab)
     mse, coactpenality, otherpenality = quality[0], quality[1], quality[2]
     # destdir = folders.animatlab_rootFolder + "ChartResultFiles/"
     # Note: otherpenality is already included in mse (in testQuality)
@@ -5135,7 +5199,7 @@ def runTrials(win, paramserie, paramserieSlices,
         # Here we retrieve the error, the mse, the coactPenality, the number of
         # the simulation in the current batch and the number of the current of
         # the simulation in the current run
-        [err, mse, CoactP, simSubNb, simulNb] = behav
+        [err, mse, coactP, simSubNb, simulNb] = behav
         print(simulNb, "-> rang dans le databhv:", end=' ')
         print(simulNb + len(optSet.pairs))
         # Here we read the values contained in the last simulation we've done
@@ -5143,12 +5207,12 @@ def runTrials(win, paramserie, paramserieSlices,
                                                         preTot, simulNb + 1))
         win.lst_bestchart.append(txtchart)
         # txtchart = win.lst_bestchart[idx]
-        comment = "randParam bestfit:" + str(err)
-        comment += "; mse bestfit:" + str(mse)
-        comment += "; coactBestFit:" + str(CoactP)
+        comment = "mse:{:.4f}; coactP:{:.4}".format(mse, coactP)
         chart_glob_name = procName + "_chart"
+        #=============================================================
         chartName = savechartfile(chart_glob_name,
                                   chartdir, txtchart, comment)
+        #=============================================================
         win.lst_chartName.append(chartName)
         text = "... chart files {} saved; {}"
         print(text.format(chartName, comment))
@@ -5190,14 +5254,14 @@ def runTrials(win, paramserie, paramserieSlices,
     synParName = optSet.synParName
     synNSParName = optSet.synNSParName
     synFRParName = optSet.synFRParName
-    minMse = 100000
-    minCoactP = 100000
-    minErr = 100000
-    minErrGEP = 100000
-    bestGEPmse = 100000
-    bestGEPerr = 100000
-    bestCoactP = 100000
-    minerrgoodGEP = 100000
+    minMse = 100000.
+    minCoactP = 100000.
+    minErr = 100000.
+    minErrGEP = 100000.
+    bestGEPmse = 100000.
+    bestGEPerr = 100000.
+    bestCoactP = 100000.
+    minerrgoodGEP = 100000.
     simulNb = 0
     saveBad = True
     newminfound = False
@@ -5258,14 +5322,18 @@ def runTrials(win, paramserie, paramserieSlices,
             tab = readTablo(folders.animatlab_result_dir,
                             findTxtFileName(model, optSet, pre, idx+1))
             lst_tab.append(tab)
+            # ================================================================
             quality = testquality(optSet, tab, optSet.template, "",
-                                  affich=print_adapt_tmplate_proc_MSE,
-                                  other_constraints = {'max_endangle': 115})
+                                  affich=print_adapt_tmplate_proc_MSE)
+            # ================================================================
             mse = quality[0]
             coactpenality = quality[1]
             otherpenality = quality[2]
+
+            # ================================================================
             resbehav = getbehavElts(optSet, tab,
                                     print_adapt_tmplate_proc_varmse)
+            # ================================================================
 
             startangle = resbehav[0]
             endangle = resbehav[1]
@@ -5281,16 +5349,21 @@ def runTrials(win, paramserie, paramserieSlices,
             if procName != "GEP":
                 err = mse+coactpenality
                 txt = "\terr:{:4.4f}; mse:{:4.4f}; coactpenality:{};"
-                txt = txt + " otherpenality:{:4.8f}"
-                comment0 = txt.format(err, mse, coactpenality, otherpenality)
+                text2 = ""
+                for key in otherpenality:
+                    text2 += key + ":{:.2f}    ".format(otherpenality[key])
+                txt = txt + "\n" + text2
+                comment0 = txt.format(err, mse, coactpenality)
             else:
                 varcoactpenality = resbehav[8]
                 varotherpenality = resbehav[9]
                 err = varmse+varcoactpenality
                 txt = "\terr:{:4.4f}; varmse:{:4.4f}; coactpenality:{};"
-                txt = txt + " otherpenality:{:4.8f}"
-                comment0 = txt.format(err, varmse,
-                                      varcoactpenality, varotherpenality)
+                text2 = ""
+                for key in varotherpenality:
+                    text2 += key + ":{:.2f}    ".format(varotherpenality[key])
+                txt = txt + "\n" + text2
+                comment0 = txt.format(err, varmse, varcoactpenality)
                 coactpenality = varcoactpenality
                 otherpenality = varotherpenality
                 
@@ -5309,6 +5382,7 @@ def runTrials(win, paramserie, paramserieSlices,
                                               coactpenality, idx, deb, minMse,
                                               minCoactP, minsimSubNb,
                                               minsimulNb)
+                                            
             elif procName == "GEP":  # the aim is to save all acceptable behavs
                 # (if savechart == 2)  or only the best (savechart == 1)
                 if (err < 1) and (abs(startangle) < 1) and (endangle > 10):
@@ -5774,8 +5848,10 @@ class makeChartGraphs(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(makeChartGraphs, self).__init__(parent)
         
-    def graphfromchart(self, optSet, chart_path, chartName, templateFileName):
-        graphfromchart(optSet, chart_path, chartName, templateFileName)
+    def graphfromchart(self, optSet, chart_path, chartName, templateFileName,
+                       comment=""):
+        graphfromchart(optSet, chart_path, chartName, templateFileName,
+                       comment=comment)
 
     """
     def select_variables(self):
@@ -5795,6 +5871,7 @@ def save_listDicSpanVal(destDir, ficname, listDicSpanVal):
         fparname.write(s+"\n")
     fparname.close()
     print("DicSpanVal saved in " + destDir)
+
 
 def testVarMsePlot(optSet, chartFullName, interval=1./6):
     chartDir = os.path.split(chartFullName)[0]
@@ -5872,8 +5949,14 @@ def testVarMsePlot(optSet, chartFullName, interval=1./6):
             colSup3 = colSup3[:-1]
         df2.loc[:, 'Template_lag0'] = colSup3
         print("duration_template = ", durMvt2)
-        text = "{}   varmse: {}   coact1: {}   coact2: {}\n  mvt duration: {}"
-        title = text.format(chartName, behavElts[7], coact1, coact2, durMvt2)
+        text1 = "{}   varmse: {:.2f}   coact1: {:.2f}   coact2: {:.2f}\n"
+        text2 = ""
+        for key in otherpenality:
+            text2 += key + ":{:.2f}    ".format(otherpenality[key])
+        text2 += "mvt duration: {:.2f}".format(durMvt2)
+
+        text = text1 + text2
+        title = text.format(chartName, behavElts[7], coact1, coact2)
     else:
         text = "{}   varmse: {}   coact1: {}   coact2: {}"
         title = text.format(chartName, behavElts[7], coact1, coact2)
@@ -5903,7 +5986,7 @@ def testVarMsePlot(optSet, chartFullName, interval=1./6):
     plt.savefig(os.path.join(chartDir, basename + '.pdf'))
     plt.savefig(os.path.join(chartDir, basename + '.eps'))
     plt.show()
-    return shift
+    return shift, text2
 
 
 # ==========================================================================
@@ -5965,7 +6048,9 @@ if __name__ == '__main__':
         print(chartName)
         if chartFullName != "":
             try:
-                shift = testVarMsePlot(optSet, chartFullName, interval=1./6)
+                rep = testVarMsePlot(optSet, chartFullName, interval=1./6)
+                shift= rep[0]
+                text2 = rep[1]
                 print("shift=", shift)
             except Exception as e:
                 print(e)
@@ -5974,8 +6059,9 @@ if __name__ == '__main__':
                 templateFileName = os.path.join(folders.animatlab_result_dir,
                                                 "template.txt")
                 truc.graphfromchart(optSet, chart_path, chartName,
-                                    templateFileName)
+                                    templateFileName, comment=text2)
         else:
             Go_ON = False
+            exit()
     app.exec_()
 

@@ -43,7 +43,7 @@ random	span=5	xCoactPenality1=500	nbByPacket=8	nbTotRandRuns=16
 angle	0	80	mvtdur	0.400
 const	NS1_IaExt-ExtAlMn.SynAmp=0.01	NS1_IaFlx-FlxAlMn.SynAmp=0.045
 random	xCoactPenality1=500	nbByPacket=8	nbTotRandRuns=16
-span=5
+span=5-
 
 The two folder lines specify:
     the path to the "working directory" containing .proj, .asim, .aform files,
@@ -112,6 +112,25 @@ Modified May 16, 2023 (D. Cattaert):
         scale (for x and y).
         save_density_map_metrics() added in the list of graphs.
         MakeGraphs.py modified accordingly.
+Modified February 10, 2025 (D.Cattaert):
+    other_constraints dictionary is now red from optSet.other_constraints.
+    other_constraints is used to define the cost function additional
+    constraints such as "max_endangle"  and  "max_endMN_pot"
+    A new procedure "set_other_constraints()" reads the line starting with
+    "other_constraints" in the scriptFile and creates the other_constraints
+    dictionary, and copy it into optSet.other_constraints
+    Thereby, these other constraints are taken into account in the calcylation
+    of the cost funcion.
+    buildControlScript.py, optimization.py and animatlabOptimSetting.py have
+    been modified accordingly.
+Modified February 11, 2025 (D.Cattaert):
+    New procedures added :
+        check_collectInterval(dirname)
+        check_collectInterval_in_all_subdirs(directory)
+        These procedures check and correct collectinterval in aform and asim
+        files in the base directory (and its subdirectories AprojFiles  &
+                                     FinalModel)
+        before executing the copy_to_workDir command, in the srcdir (base)
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -139,6 +158,10 @@ from optimization import getInfoComputer
 from SaveInfoComputer import SetComputerInfo
 
 from GUI_AnimatPar import saveParams
+from GUI_AnimatPar import readColIntervalFromAform
+from GUI_AnimatPar import changeCollIntervalAform
+from GUI_AnimatPar import readColIntervalFromAsim
+from GUI_AnimatPar import changeCollIntervalAsim
 
 global verbose
 verbose = 1
@@ -442,6 +465,7 @@ def sets_randGEPParam(tabscript, line):
             win.valueCoactPen2.setText(str(xCoactPenality2))
             optSet.xCoactPenality2 = int(valPar)
             print("xCoactPenality2:", xCoactPenality2)
+
         # Set the amount of node we look at to determine our starting
         # parameters
         if nomPar == "neighbours":
@@ -605,6 +629,27 @@ def SetsVSCDParam(tabscript, line):
         shutil.copyfile(src, tgt)
 
 
+def set_other_constraints(tabscript, line):
+    """
+    In : tabscript : list containing the couples
+        ("the_name_of_the_parameter=its_value") as exctracted in the function
+        ReadScriptFile
+        par : String containing the type of algorithm to run
+        line : the number of the line on which we are
+    This procedure will set the other constraints of the cost function by
+        reading the dictionnary and affect it to optSet.other_constraints
+        optSet.other_constraints is then red when the process starts
+    """
+    otherconstraints_names = optSet.otherconstraints_names
+    other_constraints = {}
+    for idx, val in enumerate(tabscript[line][1:]):
+        nomPar, valPar = extractParam(val)
+        if nomPar in otherconstraints_names:
+            other_constraints[nomPar] = float(valPar)
+    print(other_constraints)
+    optSet.other_constraints = other_constraints    
+    
+
 def savemapbehav():
     start = 0
     end = len(optSet.behavs)
@@ -637,6 +682,8 @@ def readCommand(tabscript, par, line, angles, const):
         SetsCMAEsParam(tabscript, line)
     if par == "loeb" or par == "Loeb" or par == "VSCD":
         SetsVSCDParam(tabscript, line)
+    if par == "other_constraints":
+        set_other_constraints(tabscript, line)
     if par == "loadGEPdata":
         loadPreviousExploredData(animatsimdir)
     if par == "CreateDir":
@@ -1436,6 +1483,39 @@ def loadTextFile(script_dir):
     return fname, winLoad
 
 
+def check_collectInterval(dirname):
+    chartNames = []
+    for ficname in os.listdir(dirname):
+        if ficname.endswith("aform"):
+            # print(ficname)
+            chartNames.append(ficname)
+    if len(chartNames) > 0:
+        for aformFile in chartNames:
+            chartPathName = dirname + "/" + aformFile
+            collIntervalAform = readColIntervalFromAform(chartPathName)
+            if collIntervalAform != '0.01':
+                changeCollIntervalAform(chartPathName)
+
+    asimNames = []
+    for simname in os.listdir(dirname):
+        if simname.endswith("asim"):
+            print(simname)
+            asimNames.append(simname)
+    if len(asimNames) > 0:
+        for asimFile in asimNames:
+            asimPathName = dirname + "/" + asimFile
+            collIntervalAsim = readColIntervalFromAsim(asimPathName)
+            if collIntervalAsim != '0.01':
+                changeCollIntervalAsim(asimPathName)
+
+def check_collectInterval_in_all_subdirs(directory):
+    check_collectInterval(directory)
+    dirname = directory + "/AprojFiles"
+    check_collectInterval(dirname)
+    dirname = directory + "/FinalModel"
+    check_collectInterval(dirname)
+
+
 def readscriptfile(scriptfilename):
     # =======   Reads the start and end angles (angle1 & angle2   ===========
     gravity = 1000
@@ -1468,6 +1548,7 @@ def readscriptfile(scriptfilename):
             if tmptext == "copy_to_workDir":
                 print("copy_to_workDir", tabscript[line][1])
                 srcdir, pathDest = prepareCopyData(tabscript, line)
+                check_collectInterval_in_all_subdirs(srcdir)
                 pathDest = dirName
                 copyDirectory(srcdir, pathDest)
             if tmptext == "workingDir":
@@ -1522,6 +1603,7 @@ if __name__ == '__main__':
         line = 0
 
         res = initAnimatLab(animatsimdir, animatLabV2ProgDir)
+        
         OK = res[0]
         if OK:
             # folders = res[1]
