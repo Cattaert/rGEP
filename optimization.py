@@ -159,6 +159,8 @@ Modified February 11, 2025 (D. Cattaert):
     other_constraints is now directly red from optSet.other_constraints in
     the procedure testquality()
 
+Modified February 20, 2025 (D. Cattaert):
+    Last bugs about other_constraints fixed 
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3004,6 +3006,7 @@ def testquality(optSet, tab, template, msetyp,affich=1):
     MN1_name = optSet.mnColChartNames[1]
     coactpenality = 0.
     endAngleP = 0.
+    minAngleP = 0.
     endMNpotP = 0.
     otherP = 0.
     # quality = variance(mvt)
@@ -3053,6 +3056,13 @@ def testquality(optSet, tab, template, msetyp,affich=1):
                 endAngleP = 1 * (end_angle - max_angle)
                 otherP += endAngleP
                 otherpenality["max_endangleP"] = endAngleP
+        if "min_endangle" in other_constraints.keys():
+            min_angle = other_constraints["min_endangle"]
+            end_angle = mvt[optSet.lineEnd]
+            if  end_angle < min_angle:
+                minAngleP = 10 * (min_angle - end_angle)
+                otherP += minAngleP
+                otherpenality["min_endangleP"] = minAngleP
                 
         if "max_endMN_pot" in other_constraints.keys():
             max_endMN_pot = other_constraints["max_endMN_pot"]
@@ -3099,9 +3109,11 @@ def testquality(optSet, tab, template, msetyp,affich=1):
         else:
             print("mse", end=' ')
         affiche_liste(msetab[-3:])
+        print("cost:{:4.2f}".format(mse))
         print("coactP1: {:4.2f}".format(res1[0]), end=' ')
         print("coactP2: {:4.2f}".format(res2[0]), end=' ')
         print("MaxAngleP: {:4.2f}".format(endAngleP), end=' ')
+        print("MinAngleP: {:4.2f}".format(minAngleP), end=' ')
         print("EndMNpotP: {:4.2f}".format(endMNpotP))
         
         # print(otherpenality)
@@ -6035,7 +6047,28 @@ if __name__ == '__main__':
     # truc is created and closed, but its method graphfromchart can be called
     # ======================================================================
     # truc.select_variables()
-    Go_ON = True
+    
+    
+    listFiles = os.listdir(chartDir)
+    for filename in listFiles:
+        if os.path.splitext(filename)[1] ==  ".txt":
+            print(filename)
+            chartFullName = chartDir + "/" + filename
+            try:
+                rep = testVarMsePlot(optSet, chartFullName, interval=1./6)
+                shift= rep[0]
+                text2 = rep[1]
+                print("shift=", shift)
+            except Exception as e:
+                print(e)
+                shift = 1000
+            if shift < 10:
+                templateFileName = os.path.join(folders.animatlab_result_dir,
+                                                "template.txt")
+                truc.graphfromchart(optSet, chartDir, filename,
+                                    templateFileName, comment=text2)
+    """
+    Go_ON = True        
     while Go_ON:
         chartFullName = filedialog.askopenfilename(initialdir=chartDir,
                                                    title="Select chart file",
@@ -6063,5 +6096,6 @@ if __name__ == '__main__':
         else:
             Go_ON = False
             exit()
+    """
     app.exec_()
 

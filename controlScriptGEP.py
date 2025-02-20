@@ -131,6 +131,19 @@ Modified February 11, 2025 (D.Cattaert):
         files in the base directory (and its subdirectories AprojFiles  &
                                      FinalModel)
         before executing the copy_to_workDir command, in the srcdir (base)
+Modified February 20, 2025 (D. Cattaert):
+    A nex parameter added in other constraints: "min_endangle"
+    The procedure "set_other_constraints(tabscript, line)" has been modified so
+    that other constraints are red from the striptfile and interpreted
+    automatically:       
+        otherconstraints_names = optSet.otherconstraints_names
+        other_constraints = {}
+        for idx, val in enumerate(tabscript[line][1:]):
+            nomPar, valPar = extractParam(val)
+            if nomPar in otherconstraints_names:
+                other_constraints[nomPar] = float(valPar)
+        print(other_constraints)
+        optSet.other_constraints = other_constraints  
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore

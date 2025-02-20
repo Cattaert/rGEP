@@ -47,11 +47,17 @@ Modified February 11, 2025 (D. Cattaert):
         "NS32NG_52(sim)_ID222NGC_bhvMSpeed_cP100_100_MAng115EndMNV-60"
     A CSV file ("CostFunctionParam.csv") containing all costFunction paramters
     is created in the base directory (in the resultfile folder)
+Modified February 20, 2025 4D; Cattaert):
+    Thanks to modifications in animatlabOptimSettings.py, names and short names 
+    of the other constraints  can be obtained from:
+        optSet.otherconstraints_short_names and optSet.otherconstraints_names
+    These names and short_names are used in set_other_constraints()
+    and get_oc().
 """
 
 import os
 import tkinter, tkinter.filedialog
-import csv
+import csv, json
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
@@ -215,8 +221,23 @@ def get_control_script_filename(scriptFile_name):
     return  scriptFile_name
 
 
+def get_oc(other_constraints):
+    otherconstraints_short_names = optSet.otherconstraints_short_names
+    oc = ""
+    if other_constraints != {}:
+        for idx, key in enumerate(other_constraints.keys()):
+            if key == "max_endMN_pot":
+                oc += "EndMNV{}".format(int(other_constraints[key]*1000))
+            else:
+                oc += "{}{}".format(otherconstraints_short_names[idx],
+                                    int(other_constraints[key]))
+            print(oc)    
+    return oc
+
+
 def set_other_constraints(other_constraints):
     otherconstraints_names = optSet.otherconstraints_names
+    otherconstraints_short_names = optSet.otherconstraints_short_names
     dicValues = other_constraints
     selected = list(dicValues.keys())
     typ = "Other constraints"
@@ -236,27 +257,26 @@ def set_other_constraints(other_constraints):
     other_constraints = dicValues
     print(other_constraints)
     optSet.other_constraints = other_constraints
-    oc = ""
-    if other_constraints != {}:
-        for key in other_constraints.keys():
-            if key == 'max_endangle':
-                oc += "MAng{}".format(int(other_constraints[key]))
-            if key == "max_endMN_pot":
-                oc += "EndMNV{}".format(int(other_constraints[key]*1000))
+    oc = get_oc(other_constraints)
     return other_constraints, oc
 
 
 
 def get_elts_optim_procedure(model_short_ID, base_path):
     # ================= OPTIMIZATION to get seeds ============================
-    base_root = os.path.split(base_path)[0]
-    cP1 = 0
-    cP2 = 0
-    if base_path != "":
-        base_root_name = os.path.split(base_root)[-1]
-        prev_cP = base_root_name[base_root_name.find("cP"):]
-        cP1 = int(prev_cP[2:prev_cP.find("_")])
-        cP2 = int(prev_cP[prev_cP.find("_")+1:])
+    dicCostFileName = "CostFunctionParam.json"
+    CompleteDicCostFileName = base_path + "/ResultFiles/" + dicCostFileName
+    # Opening JSON file
+    if os.path.exists(CompleteDicCostFileName):
+        f = open(CompleteDicCostFileName,)
+        # returns JSON object as 
+        # a dictionary
+        costFunctionDic = json.load(f)
+        cP1 = costFunctionDic["coactP1"]
+        cP2 = costFunctionDic["coactP2"]
+    else:
+        cP1 = 0
+        cP2 = 0
     list_elem = ["CMAes", "VSCD"]
     typ = "Optimizations tool"
     title = "Choose one Optimization method"
@@ -358,15 +378,60 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
             span_type = "unique span value"
         else:
             span = "from_file"
-    print("GEP procedure preparation")
-    cP1 = 0
-    cP2 = 0
-    if base_path != "":
-        base_root_name = os.path.split(base_root)[-1]
-        prev_cP = base_root_name[base_root_name.find("cP"):]
-        cP1 = int(prev_cP[2:prev_cP.find("_")])
-        prev_cP2 = prev_cP[prev_cP.find("_")+1:]
-        cP2 = int(prev_cP2[:prev_cP2.find("_")])
+    print("\nGEP procedure preparation")
+    dicCostFileName = "CostFunctionParam.json"
+    CompleteDicCostFileName = base_path + "/ResultFiles/" + dicCostFileName
+    if os.path.exists(CompleteDicCostFileName):
+        print("CostFunctionParam.json found... READING")
+        f = open(CompleteDicCostFileName,)
+        # returns JSON object as 
+        # a dictionary
+        costFunctionDic = json.load(f)
+        cP1 = costFunctionDic["coactP1"]
+        cP2 = costFunctionDic["coactP2"]
+        other_constraints = {}
+        for name in optSet.otherconstraints_names:
+            if name in costFunctionDic.keys():
+                other_constraints[name] = costFunctionDic[name]
+        optSet.other_constraints = other_constraints
+        oc = get_oc(other_constraints)
+    else:
+        print("No CostFunctionParam.json file found...")
+        cP1 = 0
+        cP2 = 0   
+        if base_path != "":
+            base_root_name = os.path.split(base_root)[-1]
+            prev_cP = base_root_name[base_root_name.find("cP"):]
+            cP1 = int(prev_cP[2:prev_cP.find("_")])
+            prev_cP2 = prev_cP[prev_cP.find("_")+1:]
+            cP2 = int(prev_cP2[:prev_cP2.find("_")])
+            
+            # other_constraints = optSet.other_constraints
+            # other_constraints, oc = set_other_constraints(other_constraints)
+            other_constraints = {}
+            oc = ""
+            remain = prev_cP2[prev_cP2.find("_")+1:]
+            otherConstraints = []
+            if remain != "":
+                oc = remain
+                balises_lst = ["MAng", "EndMNV"]
+                OC_lst = []
+                for idx, bal in enumerate(balises_lst):
+                    OC_lst.append(remain.find(bal))
+                idy = 0
+                while idy < len(OC_lst)-1:
+                    otherConstraints.append(remain[OC_lst[idy]:OC_lst[idy+1]])
+                    idy += 1
+                otherConstraints.append(remain[OC_lst[idy]:])
+                for idx, chain in enumerate(otherConstraints):
+                    if chain[0:4] in ["MAng", "MaxA"] :
+                        other_constraints["max_endangle"] = chain[4:]
+                    if chain[0:4] in ["minxA"] :
+                        other_constraints["min_endangle"] = chain[4:]    
+                    if chain[0:6] == "EndMNV":
+                        other_constraints["max_endMN_pot"] = float(chain[6:])/1000
+                optSet.other_constraints = other_constraints
+
     dicValues = {'coactP1':cP1, 'coactP2':cP2, 'neighbours':1, 'auto':1,
                  'nbextend':100, 'nbfill':20}
     selected = list(dicValues.keys())
@@ -387,29 +452,7 @@ def get_elts_GEP_procedure(model_short_ID, base_path):
     if coactP2 > 5:
         coactP2 = int(coactP2)
     cP = "cP{}_{}".format(str(coactP1), str(coactP2))
-    # other_constraints = optSet.other_constraints
-    # other_constraints, oc = set_other_constraints(other_constraints)
-    other_constraints = {}
-    oc = ""
-    remain = prev_cP2[prev_cP2.find("_")+1:]
-    otherConst = []
-    if remain != "":
-        oc = remain
-        balises_lst = ["MAng", "EndMNV"]
-        OC_lst = []
-        for idx, bal in enumerate(balises_lst):
-            OC_lst.append(remain.find(bal))
-        idy = 0
-        while idy < len(OC_lst)-1:
-            otherConst.append(remain[OC_lst[idy]:OC_lst[idy+1]])
-            idy += 1
-        otherConst.append(remain[OC_lst[idy]:])
-        for idx, chain in enumerate(otherConst):
-            if chain[0:4] == "MAng":
-                other_constraints["max_angle"] = chain[4:]
-            if chain[0:6] == "EndMNV":
-                other_constraints["max_endMN_pot"] = float(chain[6:])/1000
-        optSet.other_constraints = other_constraints
+    
     # previousanimatsimdir = readAnimatLabDir()
     seeds_txt = seeds_dirname[seeds_dirname.find('seed'):]
     scriptFile_name = "rGEP" + "_" + model_short_ID
@@ -497,16 +540,22 @@ def write_optim_scriptFile(optSet, root_path, modeldirname):
         os.makedirs(newbase_path)
         copyDirectory(model_path, newbase_path)
         print(newbase_path, "created")
+    # ============= Save costfunction parameters in .csv and .json ===========
     other_constraints = optSet.other_constraints
-    costFunctionDic = dicValues
+    costFunctionDic = {"coactP1" : dicValues["coactP1"],
+                       "coactP2" : dicValues["coactP2"]}
     costFunctionDic.update(other_constraints)
     dicCostFileName = "CostFunctionParam.csv"
     CompleteDicCostFileName = newbase_path + "/ResultFiles/" + dicCostFileName
     with open(CompleteDicCostFileName, "w", newline="") as f:
         w = csv.DictWriter(f, costFunctionDic.keys())
         w.writeheader()
-        w.writerow(costFunctionDic)    
-    
+        w.writerow(costFunctionDic)
+    dicCostFileName = "CostFunctionParam.json"
+    CompleteDicCostFileName = newbase_path + "/ResultFiles/" + dicCostFileName
+    with open(CompleteDicCostFileName, "w") as file:
+        json.dump(costFunctionDic, file)
+    # =========================================================================    
     if optimiz == "CMAes":
         completename = os.path.join(scriptFile_path, scriptFile_name)
         if not os.path.exists(scriptFile_path):

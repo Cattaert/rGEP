@@ -297,6 +297,27 @@ Modified December 20, 2024 (D. Cattaert):
         if self.mydir == '':
             self.mydir = self.graph_path
         df_chart.to_csv(self.mydir + '/charts_infos.csv')
+Modified January 25, 2025 (D.Cattaert):
+    graphfromchart() procedure modified to include in the title the 3 last
+    parts of the pathway to the chartFile.
+    Previously, the graph title was:
+        "GEP_chart00.txt; randParam bestfit:0.5787...;
+        mse bestfit:0.5787022423750172; coactBestFit:0.0
+    Now it is:
+        GEP_chart05.txt; NS33B2NG(sim)/NS33B2NGB_52_..._100/workDir_animatlab
+                mse:36.1529 coactP:0.0
+        max_endangleP:18.33 End_1FlxAlpha_P:2.22 End_1ExtAlpha_P:0.00 ...
+            mvt duration: 1.08
+    The algorithm used to get mseVal and coactVal from the chart's firts line
+    have been modified to work with new charts and old charts accordings to
+    changes made in savechartfile() (in optimization.py).
+    This procedure is called by makeGraphFromChart() called by various
+    methods of GUI_graph class.
+Modified February 20, 2025 (D. Cattaert):
+    build_df_chart() modified so that is self.graph_path does not exist; it
+    is created. This occured when new charts are created from selected
+    behaviors limits (or all behaviors).The file charts_infos.csv can then be
+    saved in this new "graphs" directory.
 """
 import os
 from os import listdir
@@ -903,7 +924,7 @@ def do_plot_2D_density_map_metrics(df_bhvremain, behav_col, bhv_names,
     intervaly = round((max_y - min_y)*1000/nbrow)/1000
     extent = [min_x, max_x, min_y, max_y]
     # ================= find rank ond nbruns in orig_rg ===================
-    end_rank = df_bhvremain[df_bhvremain["orig_rg"] >= nbruns].index[0]
+    end_rank = df_bhvremain[df_bhvremain["orig_rg"] >= nbruns-1].index[0]
     behav_cues = df_bhvremain[df_bhvremain.columns[behav_col]]
     df_cues = copy.deepcopy(behav_cues)
     df_cues_sel = df_cues.loc[:][:end_rank]
@@ -1744,7 +1765,7 @@ def graph_triphasic(optSet, chart_path, chartName, EMGsNames):
     plt.savefig(os.path.join(chart_path, baseName + '_EMG_Mvt.eps'))
     plt.show()
 
-def graphfromchart(optSet, chart_path, chartName, templateFileName):
+def graphfromchart(optSet, chart_path, chartName, templateFileName, comment=""):
     """
     Uses the path, chartname and corresponding mvt template to
     built a plot of a dataframe of chart data.
@@ -1754,6 +1775,14 @@ def graphfromchart(optSet, chart_path, chartName, templateFileName):
     baseName = os.path.splitext(chartName)[0]
     rootname = os.path.split(chart_path)[0]
     result_path = rootname + "/ResultFiles"
+    expename2 = os.path.split(rootname)[1]
+    split2 = os.path.split(rootname)[0]
+    expename1 = os.path.split(split2)[1]
+    split1 = os.path.split(split2)[0]
+    expename0 = os.path.split(split1)[1]
+    experoot = expename0 + "/" + expename1 + "/" + expename2 
+
+    
 
     chart_plot_pickle_name = result_path + "/chart_plot.pkl"
     if os.path.exists(chart_plot_pickle_name):
@@ -1775,8 +1804,32 @@ def graphfromchart(optSet, chart_path, chartName, templateFileName):
     Tdf.index = Tdf[1]
     my_palette = sns.color_palette("tab10")
     # Tdf[:0.6]
-    (L, df, titre, tabparams) = chartToDataFrame(completeName,
-                                                 colnames=colnames)
+    (L, df, tit, tabparams) = chartToDataFrame(completeName,
+                                               colnames=colnames)
+
+    split_tit = tit.split(";")
+    if split_tit[2][:5] == " mse:":
+        msetxt = split_tit[2].split(":")[1]
+        mseVal = float(msetxt)
+        coacttxt = split_tit[3].split(":")[1].split("\n")[0]
+        coactVal = float(coacttxt)
+    elif split_tit[2][:5] == ' best':
+        msetxt = split_tit[2].split(":")[1]
+        mseVal = float(msetxt)
+        coactVal = None
+    else:
+        msetxt = split_tit[1].split(":")[1]
+        mseVal = float(msetxt)
+        coacttxt = split_tit[3].split(":")[1]
+        coactVal = float(coacttxt)
+    
+    titre = chartName + "; " + experoot
+    if coactVal is None:
+        titre += "\n mse:{:.4f}".format(mseVal)
+    else:    
+        titre += "\n mse:{:.4f}   coactP:{:.4}".format(mseVal, coactVal) 
+    
+    
     dfsrtTime = df.Time[0]
     # dfendTime = df.Time[len(df)-1]
     dfendTime = 9.99
@@ -1864,8 +1917,16 @@ def graphfromchart(optSet, chart_path, chartName, templateFileName):
 
     plt.gcf().subplots_adjust(left=0.09, right=0.95, top=0.9, bottom=0.1,
                               wspace=0.2, hspace=0.25)
+    if comment != "":
+        titre += "\n " + comment
     plt.suptitle(titre, fontsize=20)
+    completename = os.path.join(chart_path, baseName + '_bhvMvt.pdf')
+    if os.path.isfile(completename):
+        os.remove(completename)
     plt.savefig(os.path.join(chart_path, baseName + '_bhvMvt.pdf'))
+    completename = os.path.join(chart_path, baseName + '_bhvMvt.eps')
+    if os.path.isfile(completename):
+        os.remove(completename)
     plt.savefig(os.path.join(chart_path, baseName + '_bhvMvt.eps'))
     plt.show()
 
@@ -4097,6 +4158,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         if ret == 7:
             self.GUI_Gr_obj.make_bhvpardf_bhvparwins()
         """
+        optSet = self.GUI_Gr_obj.optSet
         listcolors = ['blue', 'orange', 'green', 'red', 'purple',
                       'brown', 'pink', 'gray', 'olive', 'cyan']
 
@@ -4171,7 +4233,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         fig = plt.figure(figsize=(10, 10), dpi=90)
         # plt.subplots_adjust(bottom=0, left=0.1, top=0.9, right=0.9)
         grid = plt.GridSpec(1, 1, wspace=0.4, hspace=0.3)
-        ax1 = fig.add_subplot(grid[0, 0])
+        # ax1 = fig.add_subplot(grid[0, 0])
         if ordTyp == "duration":
             bhv_col = [3, 13]
         else:
@@ -8443,7 +8505,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                          'origine', 'run_rg'])
         if self.mydir == '':
             self.mydir = self.graph_path
-        
+        if self.graph_path == "":
+           self.graph_path  = os.path.split(GEPfold)[0] + "/graphs"
+        if not os.path.exists(self.graph_path):
+            os.makedirs(self.graph_path)    
         df_chart.to_csv(self.mydir + '/charts_infos.csv')
         print(df_chart)
         return df_chart

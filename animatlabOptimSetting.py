@@ -9,7 +9,12 @@ Modified February 20, 2023 (D. Cattaert):
 Modified July 19, 2024 (D. Cattaert):
     enableSynNS() introduced to set to 0 SynAmp of disblaed synapses.
     This call is made in actualizeparamVSCD() method, that is called in 
-    GUI_AnimatPar.py before savinf the parameters.
+    GUI_AnimatPar.py before savinf the parameters
+    
+Modified February 20, 2025 (D. Cattaert):
+    Four elements added:
+        self.dic_stim, self.sorted_dic_stim,
+        self.dic_syn, self.sorted_dic_syn
 """
 
 import random
@@ -123,6 +128,7 @@ class OptimizeSimSettings():
         self.listeNeuronsFR = liste(self.NeuronsFR)
         self.tab_connexionsFR = affichConnexionsFR(model, self,
                                                    self.SynapsesFR, 0)
+        
         self.win = None
         self.synSimSet = None
         self.stimSimSet = None
@@ -362,8 +368,15 @@ class OptimizeSimSettings():
         for i in range(len(self.tab_neuronsFR)):
             self.neuronFRNames.append(self.tab_neuronsFR[i][0])
         self.other_constraints = {'max_endangle': 115,
+                                  'min_endangle' : 10,
                                   'max_endMN_pot': -0.061}
-        self.otherconstraints_names = ['max_endangle', 'max_endMN_pot']
+        self.otherconstraints_names = ['max_endangle', 'min_endangle',
+                                       'max_endMN_pot']
+        self.otherconstraints_short_names = ['MaxA', 'minA', 'EndMNV']
+        self.dic_oc_short = {}
+        for idx, name in enumerate(self.otherconstraints_names):
+            self.dic_oc_short[name] = self.otherconstraints_short_names[idx]
+        
         # ################################################################
         #                   ATTENTION !!!
         for phase in range(len(self.allPhasesStim)):
@@ -574,8 +587,30 @@ class OptimizeSimSettings():
         self.tab_stims = affichExtStim(self, self.ExternalStimuli, 0)
         self.tab_neurons = affichNeurons(self, self.Neurons, 0)
         self.tab_neuronsFR = affichNeuronsFR(self, self.NeuronsFR, 0)
-        self.synsTot, self.synsTotFR = [], []
 
+        self.dic_stim = {}
+        for stim in self.tab_stims:
+            if stim[5] == 'True':
+                st_name = stim[0]
+                curr = stim[3]*1e9
+                curr = round(curr * 1000)/1000
+                self.dic_stim[st_name] = curr
+        sorted_stim_list = sorted(self.dic_stim.items())
+        self.sorted_dic_stim = {}
+        [self.sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list] 
+        
+        self.dic_syn = {}
+        for idx, syn in enumerate(self.tab_connexions):
+            if idx not in self.disabledSynNbs + self.dontChangeSynNbs:
+                syn_name = syn[0]
+                cond = syn[1]
+                cond = round(cond * 1000)/1000
+                self.dic_syn[syn_name] = cond
+        sorted_syn_list = sorted(self.dic_syn.items())
+        self.sorted_dic_syn = {}
+        [self.sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
+        
+        self.synsTot, self.synsTotFR = [], []
         # ###########   Connexions   #########################
         # --------------------------------------
         # Synapses between 'voltage' neurons
