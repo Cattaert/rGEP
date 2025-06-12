@@ -160,7 +160,11 @@ Modified February 11, 2025 (D. Cattaert):
     the procedure testquality()
 
 Modified February 20, 2025 (D. Cattaert):
-    Last bugs about other_constraints fixed 
+    Last bugs about other_constraints fixed
+    
+Modified February 25, 2025 (D. Cattaert):
+    getSimSetFromAsim() procedure returns now two more lists:
+        asimtab_connexions and asimtab_connexionsFR
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -1337,7 +1341,8 @@ def getSimSetFromAsim(optSet,
         simSet.set_by_range({synFRParName[syFR]: [val[nst+nsyn+syFR]]})
     if affiche:
         print(simSet.samplePts)
-    return [simSet, asimtab_stims, asimtab_motorst]
+    return [simSet, asimtab_stims, asimtab_motorst, asimtab_connexions,
+            asimtab_connexionsFR]
 
 
 # TODO : datastructure
