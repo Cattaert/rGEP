@@ -318,6 +318,28 @@ Modified February 20, 2025 (D. Cattaert):
     is created. This occured when new charts are created from selected
     behaviors limits (or all behaviors).The file charts_infos.csv can then be
     saved in this new "graphs" directory.
+Modified June 24, 2025 ( D. Cattaert):
+    Bug fixed in "Analyze Neurons_activity/bhv from charts"
+    Now after creating the dataframe and saving it (self.fname), the dataframe
+    is recreated by launching read_csv_for_df_bhv_neur_par_from_file(self),
+    To do this, read_csv_for_df_bhv_neur_par(self) has been splitted into Two
+    methods: one to chosse the csv file and the other to read it:
+        def read_csv_for_df_bhv_neur_par(self):
+            res = (QtWidgets.QFileDialog.
+                   getOpenFileName(self, "Choose bhv_df_csv file to analyse",
+                                   self.mydir, "Files (*csv)"))
+            if type(res) == tuple:
+                self.fname, __tmp = res
+            else:
+                self.fname = res
+            print(self.fname)
+            
+            self.read_csv_for_df_bhv_neur_par_from_file()
+            
+    
+        def read_csv_for_df_bhv_neur_par_from_file(self):
+            if self.fname is not None:
+                ...
 """
 import os
 from os import listdir
@@ -1765,7 +1787,8 @@ def graph_triphasic(optSet, chart_path, chartName, EMGsNames):
     plt.savefig(os.path.join(chart_path, baseName + '_EMG_Mvt.eps'))
     plt.show()
 
-def graphfromchart(optSet, chart_path, chartName, templateFileName, comment=""):
+def graphfromchart(optSet, chart_path, chartName, templateFileName,
+                   comment=""):
     """
     Uses the path, chartname and corresponding mvt template to
     built a plot of a dataframe of chart data.
@@ -7887,6 +7910,11 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         else:
             self.fname = res
         print(self.fname)
+        
+        self.read_csv_for_df_bhv_neur_par_from_file()
+        
+
+    def read_csv_for_df_bhv_neur_par_from_file(self):
         if self.fname is not None:
             self.mydir = os.path.split(self.fname)[0]
             self.chart_glob_df = pd.read_csv(self.fname)
@@ -8216,13 +8244,17 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         chart_glob_df["rg_in_whole"] = df_par_index
         self.chart_glob_df = chart_glob_df
         self.chart_glob_df.to_csv(save_path + "/df_chart_bhv_neur_param.csv")
+        
+        self.fname = save_path + "/df_chart_bhv_neur_param.csv"
+        self.read_csv_for_df_bhv_neur_par_from_file()
+        """
         self.chart_glob_df = pd.read_csv(
             save_path + "/df_chart_bhv_neur_param.csv"
             )
         self.chart_glob_df = self.chart_glob_df.drop(['Unnamed: 0'], axis=1)
         self.chart_glob_df.dropna(inplace=True)
         self.df_glob = self.chart_glob_df
-
+        """
 
     def analyze_triphasic(self):
         self.make_bhvpardf()
