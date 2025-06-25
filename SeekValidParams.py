@@ -7,6 +7,18 @@ do save the good parameter sets, aproj and asim in specific sub-directories
 
 Modified March 18, 2025 (D. Cattaert):
     optSet.errList added (get from datastructure)
+Modified june 26, 2025 (D. Cattaert):
+    The previous list of selected variables is now proposed in the selection
+    windows
+    Two new buttons added 
+     - to add the current (saved) run in a list of seeds
+     - to save this list and create a seed directory that can be used in 
+         buildCOntrolScript.py. Note that the seed directory is a sub directory
+         of the Test directory in which seekValidParam.py is working.
+         the content of this Seed_directory  (Test_Seeds0x) is then copued to
+         a conventional seed directory (0_IDYYYY_seedsOZ). For this procedure
+         work correctly IT IS IMPORTANT TO CHOOSE a base_directory when runing
+         seekValidParam.py
 """
 
 import os
@@ -55,6 +67,10 @@ from optimization import load_datastructure
 from optimization import save_datastructure
 from optimization import mise_a_jour
 from optimization import testVarMsePlot
+from optimization import copyFileDir
+from optimization import copyFile
+from optimization import copyFileWithExt
+from optimization import copyRenameFilewithExt
 
 from makeGraphs import select_chartcol
 from makeGraphs import graphfromchart
@@ -62,7 +78,7 @@ from makeGraphs import graphfromchart
 from SaveInfoComputer import SetComputerInfo
 from GUI_AnimatPar import saveAnimatLabSimDir
 from GEP_GUI import MaFenetre, initAnimatLab
-
+from GEP_GUI import copyTo_0_idXXX_Seeds0x
 
 from DialogChoose_in_List import choose_one_element_in_list
 from DialogChoose_in_List import choose_elements_in_list
@@ -164,11 +180,11 @@ def getparamsFromAsim(optSet, asimFileName):
     return dic_stim, dic_syn
 
 
-def selectparam(dic_stim, dic_syn):
+def selectparam(dic_stim, dic_syn, selected_stim="all", selected_syn="all"):
     # sorted_dic_stim = optSet.sorted_dic_stim
-    selected_stim_names = selectStimToChange(dic_stim)
+    selected_stim_names = selectStimToChange(dic_stim, selected_stim)
     # sorted_dic_syn = optSet.sorted_dic_syn
-    selected_syn_names = selectSynToChange(dic_syn)
+    selected_syn_names = selectSynToChange(dic_syn, selected_syn)
     return selected_stim_names, selected_syn_names
 
 
@@ -180,27 +196,34 @@ def changeparam(selected_stim_names, selected_syn_names,
 
 
 
-def selectStimToChange(dic_stim):
+def selectStimToChange(dic_stim, selected_stim="all"):
     sorted_stim_list = sorted(dic_stim.items())
     sorted_dic_stim = {}
     [sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list] 
     stim_names = list(sorted_dic_stim.keys())
-    dicValues = sorted_dic_stim
-    selected = list(dicValues.keys())
+    if selected_stim == "all":
+        dicValues = sorted_dic_stim
+        selected_stim = list(dicValues.keys())
+    else:
+        selected_stim = selected_stim
     typ = "ext_stimuli"
     text = "select ext_stimuli to modifiy"
-    selected_stim_names = choose_elements_in_list(stim_names, typ, selected, text)
+    selected_stim_names = choose_elements_in_list(stim_names, typ,
+                                                  selected_stim, text)
     return selected_stim_names
 
 
 
-def selectSynToChange(dic_syn):
+def selectSynToChange(dic_syn, selected_syn="all"):
     sorted_syn_list = sorted(dic_syn.items())
     sorted_dic_syn = {}
     [sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
     syn_names = list(sorted_dic_syn.keys())
-    dicValues = sorted_dic_syn
-    selected = list(dicValues.keys())
+    if selected_syn == "all":
+        dicValues = sorted_dic_syn
+        selected = list(dicValues.keys())
+    else:
+        selected = selected_syn
     typ = "synapses"
     text = "select synapses to modifiy"
     selected_syn_names = choose_elements_in_list(syn_names, typ, 
@@ -567,27 +590,22 @@ def norm_to_real(optSet, paramset, dic_stim, dic_syn):
     return dic_stim_temp, dic_syn_temp
 
 
-def df_from_chart(optSet, chart_path, chartName,
-                  chart_plot_pkl_path, comment=""):
+def df_from_chart(optSet, chart_path, chartName, comment=""):
     colnames = optSet.chartColNames
     completeName = os.path.join(chart_path, chartName)
-    """
     baseName = os.path.splitext(chartName)[0]
     rootname = os.path.split(chart_path)[0]
-    result_path = rootname + "/ResultFiles"
+    result_path = rootname
     expename2 = os.path.split(rootname)[1]
     split2 = os.path.split(rootname)[0]
     expename1 = os.path.split(split2)[1]
     split1 = os.path.split(split2)[0]
     expename0 = os.path.split(split1)[1]
-    experoot = expename0 + "/" + expename1 + "/" + expename2
-    """
-    chart_plot_pickle_name = chart_plot_pkl_path + "/chart_plot.pkl"
+    experoot = expename0 + "/" + expename1 + "/" + expename2 
+    chart_plot_pickle_name = result_path + "/chart_plot.pkl"
     if os.path.exists(chart_plot_pickle_name):
-        print("chart_plot.pkl found in ", chart_plot_pkl_path)
         with open(chart_plot_pickle_name, 'rb') as f1:
             optSet.chart_column_to_plot = pickle.load(f1)
-            print(optSet.chart_column_to_plot)
             list_sensory_neur = optSet.chart_column_to_plot[0]
             list_alpha_neur = optSet.chart_column_to_plot[1]
             list_gamma_neur = optSet.chart_column_to_plot[2]
@@ -643,6 +661,171 @@ def create_dict_table(source_dict, title, columnTit):
     return table
 
 
+def create_seeds_dir():
+    typ = "_seeds"
+    rootdir = os.path.dirname(animatsimdir)
+    subdir = os.path.split(animatsimdir)[-1]
+    
+    rootSeedDir = "Test" + typ
+    listDirGEPfromTyp = [name for name in os.listdir(animatsimdir)
+                           if (os.path.isdir(os.path.join(animatsimdir, name))
+                               and name[0:len(rootSeedDir)] == rootSeedDir)]
+    if len(listDirGEPfromTyp) < 10:
+        newGEPDir_fromTyp = rootSeedDir+'0'+str(len(listDirGEPfromTyp))
+    else:
+        newGEPDir_fromTyp = rootSeedDir + str(len(listDirGEPfromTyp))
+    newSeedDir = testDir + "/" + newGEPDir_fromTyp
+    os.makedirs(newSeedDir)
+    
+    list_ext = [".aproj", ".asim", ".aform"]
+    copyFileDir_ext(animatsimdir, newSeedDir, list_ext, copy_dir=0)
+    
+
+    # =============== save resultFiles  ======================    
+    srcResult = testDir + "/ResultFiles"
+    dstResult = newSeedDir + "/ResultFiles"
+    # copyFile("paramOpt.pkl", src, dst)
+    copyFile("template.txt", srcResult, dstResult)
+    copyFileWithExt(srcResult, dstResult, ".pkl")   # copy all pickle files
+    copyFileWithExt(srcResult, dstResult, ".csv")   # copy all csv files
+    copyFileWithExt(srcResult, dstResult, ".json")   # copy all json files
+
+    # ============== copy Test directories  ======================  
+    srcChartDir = testDir + "/ChartFiles"
+    dstChartDir = newSeedDir + "/ChartFiles"
+    if not os.path.exists(dstChartDir):
+        os.makedirs(dstChartDir)    
+    srcAprojDir = testDir + "/AprojFiles"
+    dstAprojDir = newSeedDir + "/AprojFiles"
+    if not os.path.exists(dstAprojDir):
+        os.makedirs(dstAprojDir)  
+    srcAsimDir = testDir + "/AsimFiles"
+    dstAsimDir = newSeedDir + "/AsimFiles"
+    if not os.path.exists(dstAsimDir):
+        os.makedirs(dstAsimDir) 
+    srcFinalDir = testDir + "/FinalModel"
+    dstFinalDir = newSeedDir + "/FinalModel"
+    if not os.path.exists(dstFinalDir):
+        os.makedirs(dstFinalDir)
+    copyFileDir_ext(srcFinalDir, dstFinalDir, list_ext, copy_dir=0)
+    
+    list_ranks_GEPdata = []
+    for chart in TestWin.seed_list:
+        tmp = chart[chart.find("chart")+5:]
+        tmp2 = tmp[:tmp.find(".txt")]
+        idx = int(tmp2)
+        print(idx)
+        list_ranks_GEPdata.append(idx)        
+    list_ranks_GEPdata.sort()
+    unique_list = []
+    for element in list_ranks_GEPdata:
+        if element not in unique_list:
+            unique_list.append(element)
+    aproj_name = os.path.splitext(aprojFicName)[0]
+    aproj_ext = os.path.splitext(aprojFicName)[1]
+    asim_name = os.path.splitext(asimName)[0]
+    asim_ext = os.path.splitext(asimName)[1]
+    list_dstchartNames = []
+    for idx, number in enumerate(unique_list):
+        if idx < 10:
+            numDst = "0" + str(idx)
+        else:
+            numDst = str(idx)
+
+        if number < 10:
+            numSrc = "0" + str(number)
+        else:
+            numSrc = str(number)    
+        srcChartName = "Test_chart" + numSrc + ".txt"
+        dstChartName = "Test_chart" + numDst + ".txt"
+        list_dstchartNames.append(dstChartName)
+        print(srcChartName, "->", dstChartName)  
+        copyRenameFilewithExt(srcChartDir, srcChartName,
+                              dstChartDir, dstChartName, ".txt", "")
+        
+        srcAprojName = aproj_name + "-" + str(number) + aproj_ext
+        dstAprojName = aproj_name + "-" + str(idx) + aproj_ext
+        print(srcAprojName, "->", dstAprojName)  
+        copyRenameFilewithExt(srcAprojDir, srcAprojName,
+                              dstAprojDir, dstAprojName, aproj_ext, "")
+        
+        srcAsimName = asim_name + "-" + str(number) + asim_ext
+        dstAsimName = asim_name + "-" + str(idx) + asim_ext
+        print(srcChartName, "->", dstChartName)  
+        copyRenameFilewithExt(srcAsimDir, srcAsimName,
+                              dstAsimDir, dstAsimName, asim_ext, "")
+    chartdir = dstChartDir
+    templateFileName = dstResult + "/template.txt"
+    for chartName in list_dstchartNames:
+        graphfromchart(optSet, chartdir, chartName, templateFileName)    
+
+    # =============== Save new_datastructure =================
+    dic_structure = optSet.datastructure
+    new_datastructure = {}
+    for idx,rank in enumerate(unique_list):
+        line = dic_structure[rank]
+        print(idx,line)
+        if idx < 10:
+            number = "0"+str(idx)
+        else:
+            number = str(idx)
+        newline = line
+        newline[1] = idx+1
+        newline[2] = idx+1
+        if newline[4][3][0] > 1:
+            newline[4][3][0] = 0
+        newline[4][4] = ["Test_chart"+number+".txt"]
+        newline[4][5] = [idx]
+        new_datastructure[idx] = newline 
+    print()
+    for idx in new_datastructure.keys():
+        print(idx, new_datastructure[idx])
+    print()
+    dstGEPdataDir = newSeedDir + "/GEPdata"
+    if not os.path.exists(dstGEPdataDir):
+        os.makedirs(dstGEPdataDir)
+    complete_GEPdata_filename = dstGEPdataDir + "/GEPdata00.par"  
+    # assert os.path.isfile(complete_GEPdata_filename)    
+    save_datastructure(new_datastructure, complete_GEPdata_filename)
+    
+    # ================= Save GEPdata files ===================
+    parfilename = "GEPdata00.txt"
+    bhvfilename = "GEPdata00bhv.txt"
+    completeparname = dstGEPdataDir + "/" + parfilename
+    completebhvname =  dstGEPdataDir + "/" + bhvfilename
+    fpar = open(completeparname, 'a')
+    fbhv = open(completebhvname, 'a')
+    endSerie = 0
+    for idx,rank in enumerate(unique_list):
+        # ==================== saves GEPdata00.txt ===========
+        pair = optSet.pairs[rank]
+        print(pair[-2])
+        if pair[-2] > 1:
+            pair[-2] = 0
+        s = ""
+        for idy, tmpval in enumerate(pair):
+            s += "{:4.8f}".format(tmpval) + '\t'
+        s += str(endSerie) + '\n'
+        # print(s, end=" ")
+        fpar.write(s)
+        # ================== saves GEPdata00bhv.txt ==========
+        behav = optSet.behavs[rank]
+        if behav[-1] > 1:
+            behav[-1] = 0
+        s = ""
+        for idy, tmpval in enumerate(behav):
+            s += "{:4.8f}".format(tmpval) + '\t'
+        s += str(endSerie) + '\n'
+        # print(s, end=" ")
+        fbhv.write(s)
+        endSerie += 1
+    fpar.close()
+    fbhv.close()
+    
+    # ==============  Create 0_IDname_seeds0x directory  =================
+    copyTo_0_idXXX_Seeds0x(newSeedDir, animatsimdir)    
+        
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, optSet, dic_stim, selected_stim_names,
                                dic_syn, selected_syn_names,
@@ -667,6 +850,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.dic_stim2[name] = dic_stim[name]
         for name in self.selected_syn_names:
             self.dic_syn2[name] = dic_syn[name]
+        self.seed_list = []
         self.init_ui()   
         
     def init_ui(self):
@@ -724,9 +908,8 @@ class MainWindow(QtWidgets.QMainWindow):
         optSet = self.optSet
         folders = optSet.folders
         chart_path = folders.animatlab_result_dir
-        chart_plot_pkl_path = chart_path
         chartName = findTxtFileName(optSet.model, optSet, "", 1)    
-        self.build_df_chart(chart_path, chartName, chart_plot_pkl_path)
+        self.build_df_chart(chart_path, chartName)
         self.dic_col = {}
         self.dic_color = {'1FlxIa': 'magenta', '1ExtIa': 'cyan',
                           '1FlxIb': 'pink', '1ExtIb': 'lightblue',
@@ -796,10 +979,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnRun =  QtWidgets.QPushButton("Run simulation")
         self.btnChgXrange = QtWidgets.QPushButton("Change XRange")
         self.btnSave = QtWidgets.QPushButton("Save asim, aproj, chart")
+        self.btnMakeSeeds = QtWidgets.QPushButton("Make seeds Dir")
+        self.btnAddToSeeds = QtWidgets.QPushButton("Add to seeds")
         self.btnPrevious = QtWidgets.QPushButton("Previous Test")
         self.btnNext = QtWidgets.QPushButton("Next Test")
-        self.btnQuit =  QtWidgets.QPushButton("Quitter")
+        self.btnQuit =  QtWidgets.QPushButton("Quit")
         button_layout.addWidget(self.btnRun)
+        button_layout.addWidget(self.btnMakeSeeds)
+        button_layout.addWidget(self.btnAddToSeeds)
         button_layout.addWidget(self.btnSave)
         button_layout.addWidget(self.btnChgXrange)
         button_layout.addWidget(self.btnPrevious)
@@ -808,7 +995,16 @@ class MainWindow(QtWidgets.QMainWindow):
         
         layout.addLayout(top_layout, 80)
         layout.addLayout(button_layout, 20)
-
+        
+        self.btnMakeSeeds.setStyleSheet('QPushButton\
+                                       {background-color: #A3C1DA;\
+                                                   color: blue;}')
+        
+        self.btnQuit.setStyleSheet('QPushButton\
+                                        {background-color: #A3C1DA;\
+                                                    color: red;}')
+        
+        
         self.font = QtGui.QFont()
         self.font.setBold(False)
         self.font.setPointSize(12)
@@ -837,6 +1033,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnQuit.setFont(self.font)
         self.btnSave.setEnabled(False)
         self.btnNext.setEnabled(False)
+        self.btnMakeSeeds.setEnabled(False)
+        self.btnAddToSeeds.setEnabled(False)
         
         # actions
         self.stimTable.cellChanged.connect(self.update_stimTable)
@@ -844,6 +1042,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnRun.clicked.connect(self.run)
         self.btnChgXrange.clicked.connect(self.changeXrange)
         self.btnSave.clicked.connect(self.save)
+        self.btnAddToSeeds.clicked.connect(self.add_to_seeds)
+        self.btnMakeSeeds.clicked.connect(self.make_seeds)
         self.btnPrevious.clicked.connect(self.show_previous_run)
         self.btnNext.clicked.connect(self.show_next_run)
         self.btnQuit.clicked.connect(self.closeIt)
@@ -854,27 +1054,17 @@ class MainWindow(QtWidgets.QMainWindow):
             chartList = getChartListfromDatastructure(datastructure)
             chartName = chartList[-1]
             chart_path = chart_path = animatsimdir + "/Test/ChartFiles"
-            testDir = optSet.testDir
-            resultFiles_path = testDir + "/ResultFiles"
-            self.actualize_graphs(chart_path, chartName, resultFiles_path)
+            self.actualize_graphs(chart_path, chartName)
             self.chart_name = chartName
             self.actualize_graph_comment(chart_path, chartName)
-            pair = optSet.pairs[self.present_run]
-            paramset = pair[:-2]
-            dic_stim, dic_syn = norm_to_real(optSet, paramset,
-                                             self.dic_stim, self.dic_syn)
-            for st in selected_stim_names:
-                dic_stim2[st] = dic_stim[st]            
-            for sy in selected_syn_names:
-                dic_syn2[sy] = dic_syn[sy] 
-            self.actualizeStimTable(dic_stim2)
-            self.actualizeSynTable(dic_syn2)
+            self.btnAddToSeeds.setEnabled(True)
 
         else:
             self.present_run = -1
             self.btnNext.setEnabled(False)
             self.btnPrevious.setEnabled(False)
             self.chart_name = "unsaved"
+        
 
     def create_dict_table(self, source_dict, title, columnTit):
         table = QtWidgets.QTableWidget()
@@ -919,11 +1109,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.dic_syn2[new_key] = self.dic_syn2.pop(old_key)
             self.dic_syn2[new_key] = float(new_value)
 
-    def build_df_chart(self, chart_path, chartName, chart_plot_pkl_path):
+    def build_df_chart(self, chart_path, chartName):
         optSet=self.optSet
-        df, dfsrtTime, dfendTime = df_from_chart(optSet, chart_path, chartName,
-                                                 chart_plot_pkl_path,
-                                                 comment="")
+        df, dfsrtTime, dfendTime = df_from_chart(optSet, chart_path,
+                                                 chartName, comment="")
         self.df = df
         self.dfsrtTime = dfsrtTime
         self.dfendTime = dfendTime
@@ -954,11 +1143,10 @@ class MainWindow(QtWidgets.QMainWindow):
             graph.setXRange(self.xmin, self.xmax)
 
 
-    def actualize_graphs(self,  chart_path, chartName, resultFiles_path):
+    def actualize_graphs(self,  chart_path, chartName):
         for graph in self.list_graphs:
             graph.clear()
-        chart_plot_pkl_path = resultFiles_path   
-        self.build_df_chart(chart_path, chartName, chart_plot_pkl_path)
+        self.build_df_chart(chart_path, chartName)
         
         for graph in self.list_graphs:
             list_col = self.dic_col[graph]
@@ -1010,14 +1198,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pair = np.concatenate([paramSet, mse_coact])
         
         optSet = self.optSet
-        resultFiles_path = folders.animatlab_result_dir
         chart_path = folders.animatlab_result_dir
         chartName = findTxtFileName(model, optSet, "", 1)
-        self.actualize_graphs(chart_path, chartName, resultFiles_path)
+        self.actualize_graphs(chart_path, chartName)
         self.chart_name = "unsaved"
         self.actualize_graph_comment(chart_path, chartName)
         self.btnSave.setEnabled(True)
-
+        self.btnAddToSeeds.setEnabled(False)
         
     def save(self):
         simulNb = self.simulNb
@@ -1071,7 +1258,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.actualize_graph_comment(chart_path, chartName)
         if self.present_run > 0:
             self.btnPrevious.setEnabled(True)
-
+        self.btnAddToSeeds.setEnabled(True)
 
     def savedic_pdf_param(self):     
          chartList = getChartListfromDatastructure(datastructure)
@@ -1088,6 +1275,15 @@ class MainWindow(QtWidgets.QMainWindow):
              json.dump(dic_pdf_param, f, indent=4)
          self.jsondicfile_name = jsondicfile_name
 
+
+    def add_to_seeds(self):
+        print("Add current run to seed list (the ist is saved by clicking on 'Make seeds'")
+        self.seed_list.append(self.chart_name)
+        self.btnMakeSeeds.setEnabled(True)
+        
+    def make_seeds(self):
+        print("saves the list of seeds in a seed directory")
+        create_seeds_dir()
 
     def show_previous_run(self):
         if self.nb_run == 0:  # There is no run
@@ -1112,8 +1308,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.actualizeSynTable(dic_syn2)
             chartName = chartList[self.present_run]
             chart_path = testDir + "/ChartFiles"
-            resultFiles_path = testDir + "/ResultFiles"
-            self.actualize_graphs(chart_path, chartName, resultFiles_path)
+            self.actualize_graphs(chart_path, chartName)
             self.chart_name = chartName
             self.actualize_graph_comment(chart_path, chartName)
 
@@ -1143,8 +1338,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.actualizeSynTable(dic_syn2)
             chartName = chartList[self.present_run]
             chart_path = testDir + "/ChartFiles"
-            resultFiles_path = testDir + "/ResultFiles"
-            self.actualize_graphs(chart_path, chartName, resultFiles_path)
+            self.actualize_graphs(chart_path, chartName)
             self.chart_name = chartName
             self.actualize_graph_comment(chart_path, chartName)
             
@@ -1175,7 +1369,7 @@ if __name__ == '__main__':
 
     dirname = filedialog.askdirectory(parent=root,
                                       initialdir=previousanimatsimdir,
-                                      title='Please select a directory')
+                                      title='Please select a base directory')
     root.destroy()
     if len(dirname ) > 0:
         print("You chose %s" % dirname)
@@ -1211,6 +1405,7 @@ if __name__ == '__main__':
         folders = optSet.folders
         projMan = optSet.projMan
         setMotorStimsOff(model, optSet.motorStimuli)
+        asimName = os.path.split(model.asimFile)[-1]
 
     testDir = animatsimdir + "/Test"
     optSet.testDir = testDir
@@ -1228,15 +1423,36 @@ if __name__ == '__main__':
     optSet.errList = errList
 
     simulNb = 0
-            
+    optSet,asimFileName = chooseAsimFile(optSet, animatsimdir)
+    dic_stim, dic_syn = getparamsFromAsim(optSet, asimFileName)
+    
+    
+    selectStimFileName = "selectStimlist.json"
+    selectSynFileName = "selectSynlist.json"
+    completeStimFileName = testDir + "/" + selectStimFileName
+    completeSynFileName = testDir + "/" + selectSynFileName
+    
+    selected_stim = list(dic_stim.keys())
+    selected_syn = list(dic_syn.keys())
+    if (os.path.exists(completeStimFileName) 
+        and os.path.exists(completeSynFileName)):
+        print("previous selection of stim and syn found")
+        
+        with open(completeStimFileName, "r") as f:
+            selected_stim = json.load(f)
+        with open(completeSynFileName, "r") as f:
+            selected_syn = json.load(f)    
+
+    selected_stim_names, selected_syn_names = selectparam(dic_stim,
+                                                          dic_syn,
+                                                          selected_stim,
+                                                          selected_syn)
+    with open(completeStimFileName, "w") as f:
+        json.dump(selected_stim_names, f)
+    with open(completeSynFileName, "w") as f:
+        json.dump(selected_syn_names, f)
 
     
-    optSet,asimFileName = chooseAsimFile(optSet, animatsimdir)
-
-
-    dic_stim, dic_syn = getparamsFromAsim(optSet, asimFileName)
-    selected_stim_names, selected_syn_names = selectparam(dic_stim, dic_syn)
-
  
     dic_stim2, dic_syn2 = changeparam(selected_stim_names, selected_syn_names,
                                       dic_stim, dic_syn)
