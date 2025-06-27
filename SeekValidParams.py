@@ -19,6 +19,10 @@ Modified june 26, 2025 (D. Cattaert):
          a conventional seed directory (0_IDYYYY_seedsOZ). For this procedure
          work correctly IT IS IMPORTANT TO CHOOSE a base_directory when runing
          seekValidParam.py
+Modified June 27, 2025 (D. Cattaert):
+    Bug fixed in the creation of 0_IDXXXNG_seeds0Y:
+        The names of the CHart dir and the chart names are now compatible with
+        GEP (i.e: GEPChartFiles and GEP_chartJJ.txt)
 """
 
 import os
@@ -667,8 +671,8 @@ def create_seeds_dir():
     subdir = os.path.split(animatsimdir)[-1]
     
     rootSeedDir = "Test" + typ
-    listDirGEPfromTyp = [name for name in os.listdir(animatsimdir)
-                           if (os.path.isdir(os.path.join(animatsimdir, name))
+    listDirGEPfromTyp = [name for name in os.listdir(testDir)
+                           if (os.path.isdir(os.path.join(testDir, name))
                                and name[0:len(rootSeedDir)] == rootSeedDir)]
     if len(listDirGEPfromTyp) < 10:
         newGEPDir_fromTyp = rootSeedDir+'0'+str(len(listDirGEPfromTyp))
@@ -692,7 +696,7 @@ def create_seeds_dir():
 
     # ============== copy Test directories  ======================  
     srcChartDir = testDir + "/ChartFiles"
-    dstChartDir = newSeedDir + "/ChartFiles"
+    dstChartDir = newSeedDir + "/GEPChartFiles"
     if not os.path.exists(dstChartDir):
         os.makedirs(dstChartDir)    
     srcAprojDir = testDir + "/AprojFiles"
@@ -737,7 +741,7 @@ def create_seeds_dir():
         else:
             numSrc = str(number)    
         srcChartName = "Test_chart" + numSrc + ".txt"
-        dstChartName = "Test_chart" + numDst + ".txt"
+        dstChartName = "GEP_chart" + numDst + ".txt"
         list_dstchartNames.append(dstChartName)
         print(srcChartName, "->", dstChartName)  
         copyRenameFilewithExt(srcChartDir, srcChartName,
@@ -774,7 +778,7 @@ def create_seeds_dir():
         newline[2] = idx+1
         if newline[4][3][0] > 1:
             newline[4][3][0] = 0
-        newline[4][4] = ["Test_chart"+number+".txt"]
+        newline[4][4] = ["GEP_chart"+number+".txt"]
         newline[4][5] = [idx]
         new_datastructure[idx] = newline 
     print()
