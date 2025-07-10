@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu May 23 10:41:18 2024
-
 @author: cattaert
+Modified July 10, 2025 (D. Cattaert):
+    Added a New method to change all asim and aproj files in all subfolders
 """
 import os
 import glob
@@ -78,6 +79,31 @@ def convertPath2Text(meshPath):
         else:
             txt += meshPath[i]
     return txt
+
+
+def readMeshDir():
+    filename = "animatlabMeshDir.txt"
+    try:
+        f = open(filename, 'r')
+        directory = f.readline()
+        f.close()
+    except Exception as e:
+        if (verbose > 2):
+            print(e)
+        directory = ""
+    return directory
+
+
+def saveMeshDir(directory):
+    """
+    This procedure save the path of the directory in which we're working in
+    animatlabSimDir.txt
+    """
+    filename = "animatlabMeshDir.txt"
+    fic = open(filename, 'w')
+    fic.write(directory)
+    fic.close()
+
 
 
 def changeMeshPath(aprojdirname, meshPathTxt):
@@ -192,6 +218,17 @@ def readAnimatLabDir():
             print(e)
         directory = ""
     return directory
+
+
+def saveAnimatLabSimDir(directory):
+    """
+    This procedure save the path of the directory in which we're working in
+    animatlabSimDir.txt
+    """
+    filename = "animatlabSimDir.txt"
+    fic = open(filename, 'w')
+    fic.write(directory)
+    fic.close()
 
 
 def EditMeshPath(maleskeleton_path):
@@ -319,6 +356,8 @@ class mesh_change(QtWidgets.QWidget):
             'actualize apoj files')
         self.modify_asim_btn = QtWidgets.QPushButton(
             'actualize asim files')
+        self.modify_aprojasim_subfolds_btn = QtWidgets.QPushButton(
+            'actualize asim aproj in subfolders')
         self.btn_quit = QtWidgets.QPushButton('QUIT')
         buttonLayout1 = QtWidgets.QVBoxLayout()
         buttonLayout1.addWidget(self.select_aproj_btn)
@@ -326,12 +365,14 @@ class mesh_change(QtWidgets.QWidget):
         buttonLayout1.addWidget(self.change_meshpath_btn)
         buttonLayout1.addWidget(self.modify_aproj_btn)
         buttonLayout1.addWidget(self.modify_asim_btn)
+        buttonLayout1.addWidget(self.modify_aprojasim_subfolds_btn)
         buttonLayout1.addWidget(self.btn_quit)
         self.select_aproj_btn.clicked.connect(self.choose_folder)
         self.select_mesh_folder_btn.clicked.connect(self.choose_mesh_path)
         self.change_meshpath_btn.clicked.connect(self.change_mesh_path)
         self.modify_aproj_btn.clicked.connect(self.modify_aproj_files)
         self.modify_asim_btn.clicked.connect(self.modify_asim_files)
+        self.modify_aprojasim_subfolds_btn.clicked.connect(self.modify_SubFold_files)
         self.btn_quit.clicked.connect(self.closeIt)
         self.setLayout(buttonLayout1)
         self.setWindowTitle("Mesh Path Actualization")
@@ -387,6 +428,7 @@ class mesh_change(QtWidgets.QWidget):
             except GUI_AnimatLabError as e:
                 print("Problem in chosen folder:\n\n %s" % e.value)
                 raise
+        saveAnimatLabSimDir(self.dirname)
         return self.aprojFilePathList, self.asimFilePathList
 
     def choose_mesh_path(self):
@@ -453,56 +495,93 @@ class mesh_change(QtWidgets.QWidget):
         self.newMaleSkeleton_path = EditMeshPath(self.oldMaleSkeleton_path)
         self.meshPathTxt = convertPath2Text(self.newMaleSkeleton_path)
 
-    def modify_aproj_files(self):
+    def modify_aproj_files(self, saveOriginal=0):
         for aprojname in self.aprojFilePathList:
             res = changeMeshPathInFile(aprojname, self.meshPathTxt)
             aprojFilePath = res[0]
             aprojtree = res[1]
             changeAproj = res[2]
             if changeAproj:
-                aprojFileName = os.path.split(aprojFilePath)[-1]
-                OriginalaprojSaveDir = os.path.join(self.dirname,
-                                                    "AprojFilesOriginal")
-                if not os.path.exists(OriginalaprojSaveDir):
-                    os.makedirs(OriginalaprojSaveDir)
-                ficName = os.path.splitext(aprojFileName)[0] + '*.aproj'
-                ix = len(glob.glob(os.path.join(OriginalaprojSaveDir,
-                                                ficName)))
-                newname = os.path.splitext(aprojFileName)[0] +\
-                    '-{0:d}.aproj'.format(ix)
-                sourcefile = aprojFilePath
-                destfile = os.path.join(OriginalaprojSaveDir, newname)
-                shutil.copy(sourcefile, destfile)
-
-                print('saving file: {}'.format(destfile))
+                if saveOriginal:
+                    aprojFileName = os.path.split(aprojFilePath)[-1]
+                    OriginalaprojSaveDir = os.path.join(self.dirname,
+                                                        "AprojFilesOriginal")
+                    if not os.path.exists(OriginalaprojSaveDir):
+                        os.makedirs(OriginalaprojSaveDir)
+                    ficName = os.path.splitext(aprojFileName)[0] + '*.aproj'
+                    ix = len(glob.glob(os.path.join(OriginalaprojSaveDir,
+                                                    ficName)))
+                    newname = os.path.splitext(aprojFileName)[0] +\
+                        '-{0:d}.aproj'.format(ix)
+                    sourcefile = aprojFilePath
+                    destfile = os.path.join(OriginalaprojSaveDir, newname)
+                    shutil.copy(sourcefile, destfile)
+                    print('saving file: {}'.format(destfile))
                 print('Actualizing file: {}'.format(aprojFilePath))
                 aprojtree.write(aprojFilePath)
 
-    def modify_asim_files(self):
+    def modify_asim_files(self, saveOriginal=0):
         for asimname in self.asimFilePathList:
             res = changeMeshPathInFile(asimname, self.meshPathTxt)
             asimFilePath = res[0]
             asimtree = res[1]
             changeAsim = res[2]
             if changeAsim:
-                asimFileName = os.path.split(asimFilePath)[-1]
-                OriginalasimSaveDir = os.path.join(self.dirname,
-                                                    "AsimFilesOriginal")
-                if not os.path.exists(OriginalasimSaveDir):
-                    os.makedirs(OriginalasimSaveDir)
-                ficName = os.path.splitext(asimFileName)[0] + '*.asim'
-                ix = len(glob.glob(os.path.join(OriginalasimSaveDir,
-                                                ficName)))
-                newname = os.path.splitext(asimFileName)[0] +\
-                    '-{0:d}.asim'.format(ix)
-                sourcefile = asimFilePath
-                destfile = os.path.join(OriginalasimSaveDir, newname)
-                shutil.copy(sourcefile, destfile)
-
-                print('saving file: {}'.format(destfile))
+                if saveOriginal:
+                    asimFileName = os.path.split(asimFilePath)[-1]
+                    OriginalasimSaveDir = os.path.join(self.dirname,
+                                                        "AsimFilesOriginal")
+                    if not os.path.exists(OriginalasimSaveDir):
+                        os.makedirs(OriginalasimSaveDir)
+                    ficName = os.path.splitext(asimFileName)[0] + '*.asim'
+                    ix = len(glob.glob(os.path.join(OriginalasimSaveDir,
+                                                    ficName)))
+                    newname = os.path.splitext(asimFileName)[0] +\
+                        '-{0:d}.asim'.format(ix)
+                    sourcefile = asimFilePath
+                    destfile = os.path.join(OriginalasimSaveDir, newname)
+                    shutil.copy(sourcefile, destfile)
+    
+                    print('saving file: {}'.format(destfile))
                 print('Actualizing file: {}'.format(asimFilePath))
                 asimtree.write(asimFilePath)
 
+    def modify_SubFold_files(self):
+        list_folds = [x[0] for x in os.walk(self.dirname)]
+        for fold in list_folds:
+            print(fold)
+            projectFolder = fold
+            try:
+                # # Check for AnimatLab project file
+                self.aprojFilePathList = glob.glob(os.path.join(projectFolder,
+                                                                '*.aproj'))
+                self.asimFilePathList = glob.glob(os.path.join(projectFolder,
+                                                               '*.asim'))
+                self.aprojFilePathList.sort()
+                self.asimFilePathList.sort()
+                if len(self.aprojFilePathList) == 0:
+                    msg = "No AnimatLab project file exists with extension "\
+                            "*.aproj in folder:  %s" 
+                    print(msg)
+                else:
+                    msg = "{} AnimatLab aproj files exist with extension" \
+                            " *.aproj in folder: %s"
+                    print(msg.format(len(self.aprojFilePathList)))
+                    
+                if len(self.asimFilePathList) == 0:
+                    msg = "No AnimatLab asim file exists with extension "\
+                            "*.asim in folder:  %s"
+                    print(msg)
+                else:
+                    msg = "{} AnimatLab aproj files exist with extension" \
+                            " *.asim in folder: %s"
+                    print(msg.format(len(self.asimFilePathList)))
+            except GUI_AnimatLabError as e:
+                print("Problem in chosen folder:\n\n %s" % e.value)
+                raise
+            self.modify_aproj_files()
+            self.modify_asim_files()
+            
     def closeIt(self):
         """
         doc string

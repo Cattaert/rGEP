@@ -23,6 +23,11 @@ Modified June 27, 2025 (D. Cattaert):
     Bug fixed in the creation of 0_IDXXXNG_seeds0Y:
         The names of the CHart dir and the chart names are now compatible with
         GEP (i.e: GEPChartFiles and GEP_chartJJ.txt)
+Modified July 10, 2025 (D. Cattaert):
+    Bug fixed and securities added. The color dictionary does not use anymore
+    predefined key names (1FlxIa, 1ExtIa...) but uses the chart names. THis
+    avoids the problem of names such as  1ExtIa that is sometimes 1ExtIa and
+    sometimes IaExtIa...
 """
 
 import os
@@ -910,14 +915,20 @@ class MainWindow(QtWidgets.QMainWindow):
         # graph_container = QtWidgets.QVBoxLayout(graphs_widget)
         
         optSet = self.optSet
+        colnames = optSet.chartColNames
+        
+        
         folders = optSet.folders
         chart_path = folders.animatlab_result_dir
         chartName = findTxtFileName(optSet.model, optSet, "", 1)    
         self.build_df_chart(chart_path, chartName)
+        sens = optSet.chart_column_to_plot[0]
+        alpha = optSet.chart_column_to_plot[1]
+        other = optSet.chart_column_to_plot[2]
         self.dic_col = {}
-        self.dic_color = {'1FlxIa': 'magenta', '1ExtIa': 'cyan',
-                          '1FlxIb': 'pink', '1ExtIb': 'lightblue',
-                          '1FlxAlpha': 'red', '1ExtAlpha': 'blue',
+        self.dic_color = {sens[0]: 'magenta', sens[1]: 'cyan',
+                          sens[3]: 'pink', sens[2]: 'lightblue',
+                          alpha[0]: 'red', alpha[1]: 'blue',
                           '1FlxPotMuscle': 'brown', '1ExtPotMuscle': "darkgreen",
                           '1FlxPN': 'orange', '1ExtPN': 'lightgreen',
                           'Biceps1' : 'red', 'Triceps1': "blue",
@@ -1417,7 +1428,8 @@ if __name__ == '__main__':
         GEPdataDir = testDir + "/GEPdata"
         parfilename = "GEPdata00.par"
         completeparfilename = os.path.join(GEPdataDir, parfilename)
-        optSet.datastructure = load_datastructure(completeparfilename)
+        if  os.path.exists(completeparfilename):
+            optSet.datastructure = load_datastructure(completeparfilename)
     
     datastructure = optSet.datastructure
     if len(datastructure) > 0:
@@ -1451,6 +1463,8 @@ if __name__ == '__main__':
                                                           dic_syn,
                                                           selected_stim,
                                                           selected_syn)
+    if not os.path.exists(testDir):
+        os.makedirs(testDir)
     with open(completeStimFileName, "w") as f:
         json.dump(selected_stim_names, f)
     with open(completeSynFileName, "w") as f:
