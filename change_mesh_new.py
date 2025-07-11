@@ -4,6 +4,14 @@ Created on Thu May 23 10:41:18 2024
 @author: cattaert
 Modified July 10, 2025 (D. Cattaert):
     Added a New method to change all asim and aproj files in all subfolders
+Modified July 11, 2025 (D. Cattaert):
+    A new txt-file containing the new mesh path is saved in pwd. This file is
+    red in the __main__ by the function readMeshDir() and stored in
+    win.newMeshPath after the instance of mesh_change is created.
+    If this file does not exist the function returns ""
+    When "actualize apoj files" button or "actualize asim files" button is
+    pressed the content of win.newMeshPath allos to ask or not to the user to
+    indicate the new mesh path.
 """
 import os
 import glob
@@ -96,8 +104,7 @@ def readMeshDir():
 
 def saveMeshDir(directory):
     """
-    This procedure save the path of the directory in which we're working in
-    animatlabSimDir.txt
+    This procedure save the path of the mesh directory
     """
     filename = "animatlabMeshDir.txt"
     fic = open(filename, 'w')
@@ -439,6 +446,7 @@ class mesh_change(QtWidgets.QWidget):
         if self.newMeshPath:
             print("mesh directory: %s" % self.newMeshPath)
             self.meshPathTxt = convertPath2Text(self.newMeshPath)
+            saveMeshDir(self.newMeshPath)
         return self.meshPathTxt
     
     def change_mesh_path(self):
@@ -496,6 +504,8 @@ class mesh_change(QtWidgets.QWidget):
         self.meshPathTxt = convertPath2Text(self.newMaleSkeleton_path)
 
     def modify_aproj_files(self, saveOriginal=0):
+        if self.newMeshPath == "":
+            self.choose_mesh_path()
         for aprojname in self.aprojFilePathList:
             res = changeMeshPathInFile(aprojname, self.meshPathTxt)
             aprojFilePath = res[0]
@@ -521,6 +531,8 @@ class mesh_change(QtWidgets.QWidget):
                 aprojtree.write(aprojFilePath)
 
     def modify_asim_files(self, saveOriginal=0):
+        if self.newMeshPath == "":
+            self.choose_mesh_path()
         for asimname in self.asimFilePathList:
             res = changeMeshPathInFile(asimname, self.meshPathTxt)
             asimFilePath = res[0]
@@ -593,6 +605,7 @@ class mesh_change(QtWidgets.QWidget):
 # ==========================================================================
 if __name__ == '__main__':
     import sys
+    new_mesh_path = readMeshDir()
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle(QtWidgets.QStyleFactory.create("Windows"))
     ag = QtWidgets.QDesktopWidget().availableGeometry()
@@ -601,6 +614,8 @@ if __name__ == '__main__':
     win_height = win.geometry().height()
     win_width = win.geometry().width()
     win.screen_loc(xshift=10, yshift=sg.height()-win_height)
+    win.newMeshPath = new_mesh_path
+    win.meshPathTxt = convertPath2Text(win.newMeshPath)
 
     win.GEP_GUI_win = None  # win.GEP_GUI_win is used when makeGEPMetrics
     #                           is called from GEP_GUI to hold the object name
