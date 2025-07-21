@@ -166,7 +166,7 @@ def getparamsFromAsim(optSet, asimFileName):
             # print(stim[0])
             stimName = stim[0]
             stimVal = stim[3]
-            dic_stim[stimName] = int(stimVal * 1e9 *100000)/100000
+            dic_stim[stimName] = int(stimVal * 1e9 *10000000)/10000000
 
     dic_syn = {}
     for idx, syn in enumerate(asimtab_connexions):
@@ -191,10 +191,12 @@ def getparamsFromAsim(optSet, asimFileName):
 
 def selectparam(dic_stim, dic_syn, selected_stim="all", selected_syn="all"):
     # sorted_dic_stim = optSet.sorted_dic_stim
-    selected_stim_names = selectStimToChange(dic_stim, selected_stim)
+    selected_stim_names, sorted_dic_stims = selectStimToChange(dic_stim,
+                                                              selected_stim)
     # sorted_dic_syn = optSet.sorted_dic_syn
-    selected_syn_names = selectSynToChange(dic_syn, selected_syn)
-    return selected_stim_names, selected_syn_names
+    selected_syn_names, sorted_dic_syn = selectSynToChange(dic_syn,
+                                                           selected_syn)
+    return selected_stim_names, selected_syn_names, sorted_dic_stims, sorted_dic_syn
 
 
 def changeparam(selected_stim_names, selected_syn_names,
@@ -219,7 +221,7 @@ def selectStimToChange(dic_stim, selected_stim="all"):
     text = "select ext_stimuli to modifiy"
     selected_stim_names = choose_elements_in_list(stim_names, typ,
                                                   selected_stim, text)
-    return selected_stim_names
+    return selected_stim_names, sorted_dic_stim
 
 
 
@@ -237,7 +239,7 @@ def selectSynToChange(dic_syn, selected_syn="all"):
     text = "select synapses to modifiy"
     selected_syn_names = choose_elements_in_list(syn_names, typ, 
                                                selected, text)
-    return selected_syn_names
+    return selected_syn_names, sorted_dic_syn
 
 
 def change_stim_val(selected_stim_names, dic_stim):
@@ -302,7 +304,12 @@ def run_parameterSet(optSet, dic_stim2, dic_syn2):
     synNSParName = optSet.synNSParName
     synFRParName = optSet.synFRParName
     
-    sourceAsimFile = optSet.model.asimFile
+    #sourceAsimFile = optSet.model.asimFile
+    sourceAsimFile = optSet,asimFileName
+    
+    dic_st = {}
+    for key in dic_stim.keys():
+        dic_st[key] = dic_stim[key]
 
     vals = []
     simSet.samplePts = []
@@ -310,30 +317,38 @@ def run_parameterSet(optSet, dic_stim2, dic_syn2):
         short_st = st[ :st.find(".")]
         if short_st in dic_stim2.keys():
             val = dic_stim2[short_st] * 1e-9
-            vals.append(val)
-            simSet.set_by_range({st: [val]})
-
+        else:
+            val = dic_st[short_st] * 1e-9
+        vals.append(val)
+        simSet.set_by_range({st: [val]})
+            
     for sy in synParName:
         short_sy = sy[ :sy.find(".")]
         if short_sy in dic_syn2.keys():
             val = dic_syn2[short_sy]
-            vals.append(val)
-            simSet.set_by_range({sy: [val]})
+        else:
+            val = dic_syn[short_sy]
+        vals.append(val)
+        simSet.set_by_range({sy: [val]})
     
     for syNS in synNSParName:
         short_syNS = syNS[ :syNS.find(".")]
         if short_syNS in dic_syn2.keys():
             val = dic_syn2[short_syNS]
-            vals.append(val)
-            simSet.set_by_range({syNS: [val]})
+        else:
+            val = dic_syn[short_syNS]
+        vals.append(val)
+        simSet.set_by_range({syNS: [val]})
     
     for syFR in synFRParName:
         short_syFR = syFR[ :syFR.find(".")]
         if short_syFR in dic_syn2.keys():
             val = dic_syn2[short_syFR]
-            vals.append(val)
-            # print(synFRParName[syFR], val)
-            simSet.set_by_range({synFRParName[syFR]: [val]})
+        else:
+            val = dic_syn[short_syFR]
+        vals.append(val)
+        # print(synFRParName[syFR], val)
+        simSet.set_by_range({synFRParName[syFR]: [val]})
     xreal = vals
     
     projMan.make_asims(simSet)
@@ -543,7 +558,7 @@ def real_to_norm(optSet, dic_stim, dic_syn, dic_stim2, dic_syn2):
             stim_val = dic_stim[stim]
         parName = stim_name
         rval = stim_val * 1e-9
-        norm = int(optSet.normFromReal(parName, rval) * 100000) / 100000
+        norm = int(optSet.normFromReal(parName, rval) * 10000000) / 10000000
         paramSet.append(norm)
     for idx, syn in enumerate(dic_syn.keys()):
         if syn + ".G" in optSet.synParName:
@@ -554,7 +569,7 @@ def real_to_norm(optSet, dic_stim, dic_syn, dic_stim2, dic_syn2):
                 syn_val = dic_syn[syn]
             parName = syn_name
             rval = syn_val
-            norm = int(optSet.normFromReal(parName, rval) * 100000) / 100000
+            norm = int(optSet.normFromReal(parName, rval) * 10000000) / 10000000
             paramSet.append(norm)
         elif syn + ".SynAmp" in optSet.synNSParName:
             synNS_name = syn + ".SynAmp"
@@ -564,7 +579,7 @@ def real_to_norm(optSet, dic_stim, dic_syn, dic_stim2, dic_syn2):
                 synNS_val = dic_syn[syn]
             parName = synNS_name
             rval = synNS_val
-            norm = int(optSet.normFromReal(parName, rval) * 100000) / 100000
+            norm = int(optSet.normFromReal(parName, rval) * 10000000) / 10000000
             paramSet.append(norm)
         elif syn + ".Weight" in optSet.synFRParName:
             synFR_name = syn + ".Weight"
@@ -574,7 +589,7 @@ def real_to_norm(optSet, dic_stim, dic_syn, dic_stim2, dic_syn2):
                 synFR_val = dic_syn[syn]
             parName = synFR_name
             rval = synFR_val
-            norm = int(optSet.normFromReal(parName, rval) * 100000) / 100000
+            norm = int(optSet.normFromReal(parName, rval) * 10000000) / 10000000
             paramSet.append(norm)
     return paramSet
 
@@ -592,7 +607,7 @@ def norm_to_real(optSet, paramset, dic_stim, dic_syn):
     syn_vals = vals[len(dic_stim):]
     dic_stim_temp = {}
     for idx, stimName in enumerate(list(dic_stim.keys())):
-        dic_stim_temp[stimName] = float(int(stim_vals[idx]*1e9 *100000))/100000 
+        dic_stim_temp[stimName] = float(int(stim_vals[idx]*1e9 *10000000))/10000000 
     dic_syn_temp = {}
     for idx, synName in enumerate(list(dic_syn.keys())):
         dic_syn_temp[synName] = syn_vals[idx]
@@ -655,7 +670,7 @@ def set_Xrange(dfsrtTime, dfendTime):
 def create_dict_table(source_dict, title, columnTit):
     table = QtWidgets.QTableWidget()
     table.setColumnCount(2)
-    table.setHorizontalHeaderLabels(['Clé', 'Valeur (nA)'])
+    table.setHorizontalHeaderLabels(columnTit)
     table.horizontalHeader().\
         setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
     table.blockSignals(True)
@@ -993,6 +1008,8 @@ class MainWindow(QtWidgets.QMainWindow):
         button_layout =  QtWidgets.QHBoxLayout()
         self.btnRun =  QtWidgets.QPushButton("Run simulation")
         self.btnChgXrange = QtWidgets.QPushButton("Change XRange")
+        # self.btnShwoAllParams = QtWidgets.QPushButton("Show all Params")
+        # self.checkboxAllParams = QtWidgets.QCheckBox("Show all Params")
         self.btnSave = QtWidgets.QPushButton("Save asim, aproj, chart")
         self.btnMakeSeeds = QtWidgets.QPushButton("Make seeds Dir")
         self.btnAddToSeeds = QtWidgets.QPushButton("Add to seeds")
@@ -1004,6 +1021,7 @@ class MainWindow(QtWidgets.QMainWindow):
         button_layout.addWidget(self.btnAddToSeeds)
         button_layout.addWidget(self.btnSave)
         button_layout.addWidget(self.btnChgXrange)
+        # button_layout.addWidget(self.checkboxAllParams)
         button_layout.addWidget(self.btnPrevious)
         button_layout.addWidget(self.btnNext)
         button_layout.addWidget(self.btnQuit)
@@ -1019,7 +1037,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                         {background-color: #A3C1DA;\
                                                     color: red;}')
         
-        
+        self.showAllParamsONOFF = 0
         self.font = QtGui.QFont()
         self.font.setBold(False)
         self.font.setPointSize(12)
@@ -1041,7 +1059,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.btnRun.setFont(self.font)
         self.btnChgXrange.setFont(self.font)
-        self.btnRun.setFont(self.font)
+        # self.btnShwoAllParams.setFont(self.font)
+        self.btnAddToSeeds.setFont(self.font)
         self.btnSave.setFont(self.font)
         self.btnPrevious.setFont(self.font)
         self.btnNext.setFont(self.font)
@@ -1056,6 +1075,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.synTable.cellChanged.connect(self.update_synTable)
         self.btnRun.clicked.connect(self.run)
         self.btnChgXrange.clicked.connect(self.changeXrange)
+        # self.checkboxAllParams.stateChanged.connect(self.toggle_params)
+        # self.btnShwoAllParams.clicked.connect(self.ShowAllPärams)
         self.btnSave.clicked.connect(self.save)
         self.btnAddToSeeds.clicked.connect(self.add_to_seeds)
         self.btnMakeSeeds.clicked.connect(self.make_seeds)
@@ -1157,6 +1178,27 @@ class MainWindow(QtWidgets.QMainWindow):
         for graph in self.list_graphs:
             graph.setXRange(self.xmin, self.xmax)
 
+    def toggle_params(self, state):
+        if state == 2:  # check is ON
+            self.ShowAllParams()
+        else:
+            self.ShowSelected()
+            
+    def ShowAllParams(self):
+        self.showAllParamsONOFF = 1
+        sorted_stim_list = sorted(dic_stim.items())
+        sorted_dic_stim = {}
+        [sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list]
+        
+        sorted_syn_list = sorted(dic_syn.items())
+        sorted_dic_syn = {}
+        [sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
+        self.actualizeStimTable(sorted_dic_stim)
+        self.actualizeSynTable(sorted_dic_syn)
+        
+    def ShowSelected(self):
+        None
+        
 
     def actualize_graphs(self,  chart_path, chartName):
         for graph in self.list_graphs:
@@ -1315,12 +1357,25 @@ class MainWindow(QtWidgets.QMainWindow):
             paramset = pair[:-2]
             dic_stim, dic_syn = norm_to_real(optSet, paramset,
                                              self.dic_stim, self.dic_syn)
+            sorted_stim_list = sorted(dic_stim.items())
+            sorted_dic_stim = {}
+            [sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list]
+            
+            sorted_syn_list = sorted(dic_syn.items())
+            sorted_dic_syn = {}
+            [sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
+            
+            
             for st in selected_stim_names:
                 dic_stim2[st] = dic_stim[st]            
             for sy in selected_syn_names:
                 dic_syn2[sy] = dic_syn[sy] 
-            self.actualizeStimTable(dic_stim2)
-            self.actualizeSynTable(dic_syn2)
+            if self.showAllParamsONOFF == 1:
+                self.actualizeStimTable(sorted_dic_stim)
+                self.actualizeSynTable(sorted_dic_syn)
+            else:
+                self.actualizeStimTable(dic_stim2)
+                self.actualizeSynTable(dic_syn2)
             chartName = chartList[self.present_run]
             chart_path = testDir + "/ChartFiles"
             self.actualize_graphs(chart_path, chartName)
@@ -1345,12 +1400,25 @@ class MainWindow(QtWidgets.QMainWindow):
             paramset = pair[:-2]
             dic_stim, dic_syn = norm_to_real(optSet, paramset,
                                              self.dic_stim, self.dic_syn)
+            
+            sorted_stim_list = sorted(dic_stim.items())
+            sorted_dic_stim = {}
+            [sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list]
+            
+            sorted_syn_list = sorted(dic_syn.items())
+            sorted_dic_syn = {}
+            [sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
+            
             for st in selected_stim_names:
                 dic_stim2[st] = dic_stim[st]            
             for sy in selected_syn_names:
                 dic_syn2[sy] = dic_syn[sy] 
-            self.actualizeStimTable(dic_stim2)
-            self.actualizeSynTable(dic_syn2)
+            if self.showAllParamsONOFF == 1:
+                self.actualizeStimTable(sorted_dic_stim)
+                self.actualizeSynTable(sorted_dic_syn)
+            else:
+                self.actualizeStimTable(dic_stim2)
+                self.actualizeSynTable(dic_syn2)
             chartName = chartList[self.present_run]
             chart_path = testDir + "/ChartFiles"
             self.actualize_graphs(chart_path, chartName)
@@ -1430,6 +1498,8 @@ if __name__ == '__main__':
         completeparfilename = os.path.join(GEPdataDir, parfilename)
         if  os.path.exists(completeparfilename):
             optSet.datastructure = load_datastructure(completeparfilename)
+    else:
+        os.makedirs(testDir)
     
     datastructure = optSet.datastructure
     if len(datastructure) > 0:
@@ -1439,9 +1509,24 @@ if __name__ == '__main__':
     optSet.errList = errList
 
     simulNb = 0
+    # =========================================================================
     optSet,asimFileName = chooseAsimFile(optSet, animatsimdir)
+    # =========================================================================
     dic_stim, dic_syn = getparamsFromAsim(optSet, asimFileName)
     
+    dic_stim_fileName = 'dic_stim.csv'
+    dic_stim_complete_fileName = testDir + "/" + dic_stim_fileName
+    with open(dic_stim_complete_fileName,'w') as f:
+        w = csv.writer(f)
+        w.writerow(dic_stim.keys())
+        w.writerow(dic_stim.values())
+        
+    dic_syn_fileName = 'dic_syn.csv'
+    dic_syn_complete_fileName = testDir + "/" + dic_syn_fileName
+    with open(dic_syn_complete_fileName,'w') as f:
+        w = csv.writer(f)
+        w.writerow(dic_syn.keys())
+        w.writerow(dic_syn.values())
     
     selectStimFileName = "selectStimlist.json"
     selectSynFileName = "selectSynlist.json"
@@ -1459,10 +1544,13 @@ if __name__ == '__main__':
         with open(completeSynFileName, "r") as f:
             selected_syn = json.load(f)    
 
-    selected_stim_names, selected_syn_names = selectparam(dic_stim,
-                                                          dic_syn,
-                                                          selected_stim,
-                                                          selected_syn)
+    rep = selectparam(dic_stim, dic_syn, selected_stim, selected_syn)
+    selected_stim_names = rep[0]
+    selected_syn_names = rep[1]
+    sorted_dic_stims = rep[2]
+    sorted_dic_syn = rep[3]
+    
+    
     if not os.path.exists(testDir):
         os.makedirs(testDir)
     with open(completeStimFileName, "w") as f:

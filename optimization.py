@@ -165,6 +165,9 @@ Modified February 20, 2025 (D. Cattaert):
 Modified February 25, 2025 (D. Cattaert):
     getSimSetFromAsim() procedure returns now two more lists:
         asimtab_connexions and asimtab_connexionsFR
+Modified July 19, 2025 (D. Cattaert):
+    Bugs fixed in runTrials() & savesChartAndAsimToTmpBestChart() procedures so
+    that asaved sim files correspond to the saved charts.
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3180,189 +3183,8 @@ def getmaxspeed(mvt, line_startMvt2, rate):
     return max_speed, rg_max_sp, rg_end_mvt2
 
 
-def get_dur_mvt_old(max_speed, nbPtsMvt2, angle2, rate):
-    OK = False
-    nbPts = nbPtsMvt2
-    mid_ang_minus = flash(nbPts / 2 - 1, 0, angle2, nbPts)
-    mid_ang = flash(nbPts / 2, 0, angle2, nbPts)
-    vmax_Tmplate = (mid_ang - mid_ang_minus) * rate
-    # print(vmax_Tmplate, max_speed)
-    if abs(max_speed) > 1:
-        if vmax_Tmplate > max_speed:
-            while not OK:
-                if vmax_Tmplate > max_speed:
-                    prev_vmax_Tmplate = vmax_Tmplate
-                    nbPts += 1
-                    mid_ang_minus = flash(nbPts / 2 - 1, 0, angle2, nbPts)
-                    mid_ang = flash(nbPts / 2, 0, angle2, nbPts)
-                    vmax_Tmplate = (mid_ang - mid_ang_minus) * rate
-                else:
-                    OK = True
-                    nbPts -= 1
-                # print(prev_vmax_Tmplate, max_speed)
-        else:
-            while not OK:
-                if vmax_Tmplate < max_speed:
-                    prev_vmax_Tmplate = vmax_Tmplate
-                    nbPts -= 1
-                    if nbPts == 0:
-                        OK = True
-                    else:
-                        mid_ang_minus = flash(nbPts / 2 - 1, 0, angle2, nbPts)
-                        mid_ang = flash(nbPts / 2, 0, angle2, nbPts)
-                        vmax_Tmplate = (mid_ang - mid_ang_minus) * rate
-                else:
-                    OK = True
-                    nbPts += 1
-                # print(prev_vmax_Tmplate, max_speed)
-    else:
-        nbPts = optSet.endMvt2
-    print("template maxspeed:", prev_vmax_Tmplate, "  run maxspeed:", max_speed)
-    return nbPts
-
-
-def get_dur_mvt_old2(mvt, line_startMvt2, max_speed, nbPtsMvt2_T,
-                     startangle, endangle, rate):
-    """
-    This new version of get_dur_mvt() starts from an estimation of nbPtsMvt2_T,
-    the number of points in the adapted template, based on the hypothesis that
-    max_speed should be observed at half-time of movement duration.
-    In this functiion, template angle is calculated at three points:
-        1/3 of nbPtsMvt2_T
-        1/2 of nbPtsMvt2_T
-        2/3 of nbPtsMvt2_T
-    and compared to run angle for these three points.
-    The number of points is increased/decreased to reduce/increase template
-    speed. Once the minimum is reached, the template movement duration is
-    returned
-
-    Does not work because lag is not taken into acount...
-    """
-    OK1 = False
-    OK2 = False
-    nbPts = nbPtsMvt2_T
-    ampl = endangle - startangle
-    # abs_speed = abs(max_speed)
-
-    while not OK1:
-        first_ang_T = flash(int(float(nbPts) / 3), 0, ampl, nbPts)
-        # middle_ang_T = flash(int(float(nbPts) / 2), 0, ampl, nbPts)
-        third_ang_T = flash(int(float(nbPts) * 2 / 3), 0, ampl, nbPts)
-        angT_1st_abs = abs(first_ang_T)
-        # angT_mid_abs = abs(middle_ang_T)
-        angT_3rd_abs = abs(third_ang_T)
-        # speed_T = (angT_3rd_abs - angT_1st_abs) / (float(nbPts/3) / rate)
-
-        first_ang_run = mvt[line_startMvt2 + int(nbPts / 3)]
-        # middle_ang_run = mvt[line_startMvt2 + int(nbPts / 2)]
-        third_ang_run = mvt[line_startMvt2 + int(nbPts * 2 / 3)]
-        ang_1st_abs = abs(first_ang_run - startangle)
-        # ang_mid_abs = abs(middle_ang_run - startangle)
-        ang_3rd_abs = abs(third_ang_run - startangle)
-        print("angT_1st_abs - ang_1st_abs :", angT_1st_abs - ang_1st_abs, end=' ')
-        print("   angT_3rd_abs - ang_3rd_abs :", angT_3rd_abs - ang_3rd_abs)
-        # if (first_ang_T - first_ang_run) + (third_ang_run - third_ang_T) > 0:
-        if (angT_1st_abs > ang_1st_abs) and (angT_3rd_abs < ang_3rd_abs):
-            nbPts -= 1
-        else:
-            OK1 = True
-        # if speed_T > max_speed * 4/3:
-        #     OK1 = True
-        # if ang_mid_abs - angT_mid_abs < -10:
-        #     OK1 = True
-    # print()
-    while not OK2:
-        first_ang_T = flash(int(float(nbPts) / 3), 0, ampl, nbPts)
-        # middle_ang_T = flash(int(float(nbPts) / 2), 0, ampl, nbPts)
-        third_ang_T = flash(int(float(nbPts) * 2 / 3), 0, ampl, nbPts)
-        angT_1st_abs = abs(first_ang_T)
-        # angT_mid_abs = abs(middle_ang_T)
-        angT_3rd_abs = abs(third_ang_T)
-        # speed_T = (angT_3rd_abs - angT_1st_abs) / (float(nbPts/3) / rate)
-
-        first_ang_run = mvt[line_startMvt2 + int(nbPts / 3)]
-        # middle_ang_run = mvt[line_startMvt2 + int(nbPts / 2)]
-        third_ang_run = mvt[line_startMvt2 + int(nbPts * 2 / 3)]
-        ang_1st_abs = abs(first_ang_run - startangle)
-        # ang_mid_abs = abs(middle_ang_run - startangle)
-        ang_3rd_abs = abs(third_ang_run - startangle)
-        print("angT_1st_abs > ang_1st_abs :", angT_1st_abs - ang_1st_abs, end=' ')
-        print("   angT_3rd_abs < ang_3rd_abs :", angT_3rd_abs - ang_3rd_abs)
-        # if (first_ang_T - first_ang_run) + (third_ang_run - third_ang_T) < 0:
-        if (angT_1st_abs < ang_1st_abs) and (angT_3rd_abs > ang_3rd_abs):
-            nbPts += 1
-        else:
-            OK2 = True
-        # if speed_T < max_speed * 3/4:
-        #     OK2 = True
-        # if ang_mid_abs - angT_mid_abs > 10:
-        #     OK2 = True
-    return nbPts
-
-
-def get_dur_mvt_old3(optSet, mvt, line_startMvt2, max_speed, nbPtsMvt2_T,
-                     startangle, endangle, rate, interval=1./6):
-    """
-    Mean_Speed is calculated between 3/8 and 5/8 of nbPts in the run mvt.
-    This speed is considered to be also the max speed of the template.
-    The number of points in the desired template is then calculated so that
-    the maxspeed of the template = Mean_speed.
-    """
-    OK1 = False
-    OK2 = False
-    nbPts = nbPtsMvt2_T
-    ampl = endangle - startangle
-    strtPtSpeed = int(nbPts * (0.5 - interval))
-    endPtSpeed = int(nbPts * (0.5 + interval))
-    first_ang_run = mvt[line_startMvt2 + strtPtSpeed]
-    third_ang_run = mvt[line_startMvt2 + endPtSpeed]
-    ang_1st = first_ang_run - startangle
-    ang_3rd = third_ang_run - startangle
-    speed_r = (ang_3rd - ang_1st) / ((float(nbPts)*2*interval) / rate)
-
-    if abs(endangle-startangle) < 1:
-        OK1 = True
-        OK2 = True
-        nbPts = int((optSet.endMvt2 - optSet.startMvt2) * rate)
-        speed_T = 0
-
-    speed_r = max_speed
-    while not OK1:
-        strtPtSpeed = int(nbPts * (0.5 - interval))
-        endPtSpeed = int(nbPts * (0.5 + interval))
-
-        first_ang_T = flash(strtPtSpeed, 0, ampl, nbPts)
-        third_ang_T = flash(endPtSpeed, 0, ampl, nbPts)
-        angT_1st = first_ang_T
-        angT_3rd = third_ang_T
-        speed_T = (angT_3rd - angT_1st)/((float(nbPts)*2*interval) / rate)
-        if abs(speed_T) > abs(speed_r):
-            nbPts += 1
-        else:
-            OK1 = True
-        # print(OK1)
-        # print("template speed:", speed_T, "  run speed:", speed_r)
-    # print
-    while not OK2:
-        strtPtSpeed = int(nbPts * (0.5 - interval))
-        endPtSpeed = int(nbPts * (0.5 + interval))
-        first_ang_T = flash(strtPtSpeed, 0, ampl, nbPts)
-        third_ang_T = flash(endPtSpeed, 0, ampl, nbPts)
-        angT_1st = first_ang_T
-        angT_3rd = third_ang_T
-        speed_T = (angT_3rd - angT_1st)/((float(nbPts)*2*interval) / rate)
-        if abs(speed_T) < abs(speed_r):
-            nbPts -= 1
-        else:
-            nbPts -= 1
-            OK2 = True
-        # print("template speed:", speed_T, "  run speed:", speed_r)
-    print(" T/r speed: {:4.2f}/{:4.2f}\t".format(speed_T, speed_r), end=' ')
-    return nbPts
-
-
 def get_dur_mvt(optSet, mvt, line_startMvt2, max_speed, nbPtsMvt2_T,
-                startangle, endangle, rate, interval=1./6):
+                startangle, endangle, rate, interval=1./6, affich=0):
     """
     Mean_Speed is calculated between 3/8 and 5/8 of nbPts in the run mvt.
     This speed is considered to be also the max speed of the template.
@@ -3442,11 +3264,10 @@ def get_dur_mvt(optSet, mvt, line_startMvt2, max_speed, nbPtsMvt2_T,
         min_delta = min(spd_delta)
         idx = spd_delta.index(min_delta)
         nbPts = nbpoints[idx]
-        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(spd_T[idx], spd_r[idx]),
-              end=' ')
-    else:
-        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(speed_T, speed_r),
-              end=' ')
+        speed_T = spd_T[idx]
+        speed_r = spd_r[idx]
+    if affich:  
+        print(" T/r speed: {:4.2f}/{:4.2f}\t".format(speed_T, speed_r), end='')
     return nbPts
 
 
@@ -3593,7 +3414,7 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6):
         # ===============================================================
         nbPts_mvt2T = get_dur_mvt(optSet, mvt, line_startMvt2, max_speed,
                                   nbPtsMvt2_T, startangle, endangle, rate,
-                                  interval=interval)
+                                  interval=interval, affich=affich)
         endMvt2T = startMvt2 + float(nbPts_mvt2T)/rate
         # ===============================================================
 
@@ -5125,9 +4946,9 @@ def savesChartAndAsimToTmpBestChart(data_behav, deb, preTot, pre, dstdir,
             chartN = optSet.chartName[optSet.selectedChart]
             # We retrieve the name of the chart we get the parameters from
             if (simulNb + 1) < 10:
-                dstfile = simN + "-" + preTot + str(simulNb+1)
+                dstfile = simN + "-" + preTot + str(simulNb)
             else:
-                dstfile = simN + "-" + str(simulNb+1)
+                dstfile = simN + "-" + str(simulNb)
             dstfile += "_" + chartN
             srcdir = folders.animatlab_result_dir
             srcfile = chartFileName
@@ -5138,14 +4959,17 @@ def savesChartAndAsimToTmpBestChart(data_behav, deb, preTot, pre, dstdir,
                 srcasim = simN + "-" + pre + str(simSubNb+1) + ".asim"
             else:
                 srcasim = simN + "-" + str(simSubNb + 1) + ".asim"
-
+            """
             if (simulNb + 1) < 10:
-                dstasim = simN + "-" + preTot + str(simulNb+1)
+                dstasim = simN + "-"  + str(simulNb+1)
             else:
                 dstasim = simN + "-" + str(simulNb + 1)
+            """
+            dstasim = simN + "-" + str(simulNb)
             srcasimdir = folders.animatlab_simFiles_dir
             copyRenameFilewithExt(srcasimdir, srcasim, dstdir, dstasim,
                                   ".asim", "", replace=1)
+        
 
 
 def getBestResults(newinfound, minErr, err, mse, coactpenality, idx, deb,
@@ -5205,6 +5029,8 @@ def runTrials(win, paramserie, paramserieSlices,
     optSet = win.optSet
     win.optSet.paramserie = paramserie
     win.optSet.paramserieSlices = paramserieSlices
+    model = optSet.model
+    folders = optSet.folders
 
     def saves_chart_asim_aproj(behav):
         """
@@ -5221,7 +5047,11 @@ def runTrials(win, paramserie, paramserieSlices,
         print(simulNb + len(optSet.pairs))
         # Here we read the values contained in the last simulation we've done
         txtchart = readTabloTxt(dstdir, findTxtFileName(model, optSet,
-                                                        preTot, simulNb + 1))
+                                                        preTot, simulNb))
+        if txtchart == []:
+            win.paramserie = paramserie
+            win.paramserieSlices = paramserieSlices
+            win.stop()
         win.lst_bestchart.append(txtchart)
         # txtchart = win.lst_bestchart[idx]
         comment = "mse:{:.4f}; coactP:{:.4}".format(mse, coactP)
@@ -5230,9 +5060,12 @@ def runTrials(win, paramserie, paramserieSlices,
         chartName = savechartfile(chart_glob_name,
                                   chartdir, txtchart, comment)
         #=============================================================
+        
         win.lst_chartName.append(chartName)
         text = "... chart files {} saved; {}"
         print(text.format(chartName, comment))
+        AsimFileName = simBaseName + "-" + str(simulNb) + ".asim"
+        sourceAsimFile = dstdir + "/"+ AsimFileName
         saveBestFit_to_AsimAproj(paramserie[simulNb], sourceAsimFile,
                                  optSet, folders, model, procName=procName,
                                  typ="")
@@ -5248,7 +5081,6 @@ def runTrials(win, paramserie, paramserieSlices,
         print_adapt_tmplate_proc_MSE = 1
         print_adapt_tmplate_proc_varmse = 0
 
-    folders = optSet.folders
     print("paramserieSlices:", paramserieSlices, end=' ')
     erase_folder_content(os.path.join(folders.animatlab_rootFolder,
                                       "SimFiles"))
@@ -5285,6 +5117,10 @@ def runTrials(win, paramserie, paramserieSlices,
     minsimSubNb = -1
     minsimulNb = -1
     sourceAsimFile = optSet.model.asimFile
+    simficName = os.path.split(model.asimFile)[-1]
+    simBaseName = os.path.splitext(simficName)[0]
+    srcAsimDir = folders.animatlab_rootFolder + "/SimFiles"
+    
     if len(paramserie) > 9:
         preTot = "0"
     else:
@@ -5328,10 +5164,14 @@ def runTrials(win, paramserie, paramserieSlices,
         projMan = optSet.projMan
         projMan.make_asims(simSetGlob)
         # projMan.run(cores=-1)
+        # =====================================================================
         projMan.run(cores=paramserieSlices[run])
+        # =====================================================================
 
         for idx, x in enumerate(subparamserie):
             # reading the .asim files in SimFile directory
+            # idx+=1
+            # x = subparamserie[idx]
             if len(subparamserie) > 9:
                 pre = "0"
             else:
@@ -5420,7 +5260,7 @@ def runTrials(win, paramserie, paramserieSlices,
                     print(simulNb, err, "\t")
                 elif abs(startangle) < 1 and endangle > 10 and err < minErrGEP:
                     saveBad = False
-                    # In case no corret varmse would be found
+                    # In case no correct varmse would be found
                     # saves the best one
                     minErrGEP = err
                     bestGEPmse = varmse

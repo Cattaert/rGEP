@@ -89,6 +89,12 @@ modified October 13, 2023 (D. Cattaert):
     Dialog procedures have been grouped in DialogChoose_in_List.py script
         Accordingly buildControlScript.py, makeGraphs.py and class_UiMainWindow
         have also been modified.
+modified March 18, 2025 (D. Cattaert):
+    initAnimatLab modified :
+        gravity = float(readGravityfromAsim(model))
+    before it was a text, now it is a float.
+modified July 19, 2025 (D. Cattaert):
+    minor changes to improve GEP
 """
 
 import pyqtgraph as pg
@@ -3077,6 +3083,15 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     def run_selected_param(self):
         # self=MyWin.graph_settings.GUI_Gr_obj.mafen
         animatsimdir = self.animatsimdir
+        animatsimdirName = os.path.split(animatsimdir)[1]
+        if animatsimdirName[:5] == 'trial':
+            rootdirtmp = os.path.split(animatsimdir)[0]
+            rootdir = os.path.split(rootdirtmp)[0]
+            rootDirName = os.path.split(rootdir)[-1]
+            if rootDirName[2:7] == 'CMAes':
+                srcAsimDir = "CMAeSeuilAsimFiles"
+                
+            
         nbrun = len(self.rg_bhv_selected)
         org = self.getNbPacket(1, nbrun)
         nbEpochParam, nbRunParam, paramserieSlicesAllEpochs = org
@@ -3170,9 +3185,11 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
 
             # ========= moves seed .asim files to the self.newDestFolder ======
             simN = os.path.splitext((os.path.split(model.asimFile)[-1]))[0]
-            srcfile = simN + "-" + str(src_nb) + ".asim"
+            # srcfile = simN + "-" + str(src_nb) + ".asim"
+            srcfile = simN + "-1" + ".asim"
             dstfile = simN + "-" + str(epoch)
-            srcdir = os.path.join(self.animatsimdir, "GEPAsimFiles")
+            #srcdir = os.path.join(self.animatsimdir, "GEPAsimFiles")
+            srcdir = os.path.join(self.animatsimdir, "SimFiles")
             dstdir = os.path.join(self.newDestFolder, "GEPAsimFiles")
             if not os.path.exists(dstdir):
                 os.makedirs(dstdir)
@@ -4328,6 +4345,8 @@ def exec_rand_param(win, runType, optSet, lst_parset=[], typGEP=""):
         # if procName == "GEP":
         #    result = runGEP(self, paramserie, paramserieSlices)
         # else:
+        win.paramserie = paramserie
+        win.paramserieSlices = paramserieSlices
         result = runTrials(win, paramserie, paramserieSlices,
                            savechart=1, procName=procName,
                            runType=runType,
@@ -4882,7 +4901,7 @@ def initAnimatLab(animatsimdir, animatLabV2ProgDir):
         #                                       # 1: match physics
         setMotorStimsOff(model, optSet.motorStimuli)
         # setGravity(model, optSet.gravity)       # by default = -9.81
-        gravity = readGravityfromAsim(model)
+        gravity = float(readGravityfromAsim(model))
         optSet.gravity = gravity
         # Looks for a parameter file in the chosen directory
         fileName = 'paramOpt.pkl'

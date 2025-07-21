@@ -5,8 +5,13 @@ defines the procedures used in rGEP process in GEP_GUI
 Translated in Python 3.8 Jan 2023 (D. Cattaert)
 Modified February 22, 2023 (D. Cattaert):
     all pg.Qt.QtGui replaced by pg.Qt.QtWidgets
-"""
+Modified July 19, 2025 (D. Cattaert):
+aim_behav_extend() procedure uses a new algoruthm to find behaviors in the
+periphery of the behavio domain. The new algorithm is lodd, tha requires to
+install "scikit-learn" package (conda install scikit-learn)
 
+"""
+from math import log10
 import os
 import numpy as np
 from scipy.signal import argrelmin
@@ -14,6 +19,8 @@ from scipy.signal import argrelmin
 from pyqtgraph.Qt import QtWidgets
 
 import class_search_algorithm
+
+import matplotlib.pyplot as plt
 
 from optimization import findClosestPair_behav
 from optimization import ecrit_tab_int
@@ -25,6 +32,15 @@ from optimization import mise_a_jour
 from optimization import cleanChartsFromResultDir
 from optimization import cleanAsimsFromResultDir
 # from optimization import runTrials
+
+from Functions.border import border
+from Functions.robp import robp
+from Functions.nc import nc
+from Functions.dcm import dcm
+from Functions.ldiv import ldiv
+from Functions.lodd import lodd
+from sklearn.metrics import accuracy_score
+
 
 # TODO : continuer l'implementation du GEP
 
@@ -40,79 +56,55 @@ def aim_behav_extend(win, df_bhv_selected, opt_set):
     """
     behavs_cues = df_bhv_selected[df_bhv_selected.columns[win.behav_col]]
     rel_behavs_cues = behavs_cues/[win.scale_x, win.scale_y]
-    step = 0.06
-    density_map, listx, listy = win.makeDensityMap(rel_behavs_cues,
-                                                   step=step)
-    # self.plot_map_behav(df_bhv_selected)
-    ecrit_tab_int(density_map, startseq=0, all=1, col_width=4)
+    datatmp = np.array(rel_behavs_cues)
+    # print(datatmp)
+    N = len(datatmp)
+    data = np.ones((N,3))
+    data[:,:-1] = datatmp
+    #print(data)
+    
+    m = data.shape[1]
+    X = data[:, :m - 1]
+    #ref = data[:, m - 1]
 
-    border_inf_x = -np.ones(len(listy))
-    border_sup_x = -np.ones(len(listy))
-    for y_idx in range(len(listy)):
-        print(y_idx, "\t", end=' ')
-        for x_idx in range(len(listx)):
-            if x_idx < len(listx) - 1:
-                valx = density_map[y_idx][x_idx]
-                val_nextx = density_map[y_idx][x_idx+1]
-                if valx == 0 and val_nextx != 0:
-                    #  if border_inf_X[x_idx] == -1:
-                    border_inf_x[y_idx] = int(x_idx)
-                    print("O", end=' ')
-                elif valx != 0 and val_nextx == 0:
-                    border_sup_x[y_idx] = int(x_idx)
-                    print("X", end=' ')
-                else:
-                    print("-", end=' ')
-        print()
-    border_inf_y = -np.ones(len(listx))
-    border_sup_y = -np.ones(len(listx))
-    for x_idx in range(len(listx)):
-        print(x_idx, "\t", end=' ')
-        for y_idx in range(len(listy)-1):
-            valy = density_map[y_idx][x_idx]
-            val_nexty = density_map[y_idx+1][x_idx]
-            if valy == 0 and val_nexty != 0:
-                # if border_inf_Y[y_idx] == -1:
-                border_inf_y[x_idx] = int(y_idx)
-                print("O", end=' ')
-            elif valy != 0 and val_nexty == 0:
-                border_sup_y[x_idx] = int(y_idx+1)
-                print("X", end=' ')
-            else:
-                print("-", end=' ')
-        print()
+    # Perform the LoDD algorithm
+    #true_ratio = sum(ref)/len(ref)
+    #[int_pts, bou_pts] = lodd(X, k_num=20, ratio=true_ratio)
+    k_num=20
 
-    for y_rg, x_rg in enumerate(border_sup_y):
-        if x_rg > 0:
-            x = int(x_rg)
-            y = int(y_rg)
-            print(y_rg, border_sup_y[y_rg], x, y, end=' ')
-            print(density_map[x][y])
+    if N < 100:
+        int_pts = np.arange(0, len(data))
+        bou_pts = np.arange(0, len(data))
+    else:
+        ratio = 10/(log10(N)*log10(N)*log10(N)*log10(N))
+        [int_pts, bou_pts] = lodd(X, k_num=k_num, ratio=ratio)
 
-    aim_list = []
-    for y_rg, x_rg in enumerate(border_inf_x):
-        if x_rg > -1:
-            aim_x = win.scale_x*(listx[int(x_rg)])
-            aim_y = win.scale_y*listy[int(y_rg)]+step/2
-            aim_list.append([aim_x, aim_y])
-    for y_rg, x_rg in enumerate(border_sup_x):
-        if x_rg > -1:
-            aim_x = win.scale_x*(listx[int(x_rg)]+step*2)
-            aim_y = win.scale_y*listy[int(y_rg)]
-            aim_list.append([aim_x, aim_y])
-    for x_rg, y_rg in enumerate(border_inf_y):
-        if y_rg > -1:
-            aim_x = win.scale_x*(listx[int(x_rg)]+step/2)
-            aim_y = win.scale_y*listy[int(y_rg)]
-            aim_list.append([aim_x, aim_y])
-    for x_rg, y_rg in enumerate(border_sup_y):
-        if y_rg > -1:
-            aim_x = win.scale_x*(listx[int(x_rg)]+step/2)
-            aim_y = win.scale_y*listy[int(y_rg)]+step
-            aim_list.append([aim_x, aim_y])
-    win.plot_2D_density_map(df_bhv_selected, step=step, aimbhv=aim_list)
-    win.plot_map_behav(df_bhv_selected, aimbhv=aim_list)
+    # Visualize the result
+    plt.scatter(X[int_pts, 0], X[int_pts, 1], c='red', s=10, marker='o')
+    plt.scatter(X[bou_pts, 0], X[bou_pts, 1], c='blue', s=10, marker='o')
+    plt.show()
+    print("N=", N, len(bou_pts), "points on border")
+    
 
+    aim_list = []   # each aim is repeated 4 times to increase succes rate
+    if len(bou_pts) < 30:
+        repeated = 4
+    elif len(bou_pts) < 50:
+        repeated = 3
+    elif len(bou_pts) < 80:
+        repeated = 2
+    else:
+        repeated = 1
+    for rg in bou_pts:
+        aim_x = win.scale_x*datatmp[rg][0]
+        aim_y = win.scale_y*datatmp[rg][1]
+        rep = 0
+        while rep < repeated:
+            aim_list.append([aim_x, aim_y])
+            rep += 1
+
+        
+    
     if aim_list:
         win.lst_GEPextend_aims.append(aim_list)
         # ###############################################################
@@ -120,10 +112,11 @@ def aim_behav_extend(win, df_bhv_selected, opt_set):
                           df_bhv_selected=df_bhv_selected)
         # ###############################################################
         df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        """
         if not df_bhvremain.empty:
             win.plot_3D_density_map(df_bhvremain, step=0.02,
                                     incline=60, rot=-80)
-
+        """
 
 def aim_behav_fill(win, df_bhv_selected, opt_set):
     """
