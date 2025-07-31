@@ -132,12 +132,13 @@ def exec_CMAeFromGUI(win, optSet, projMan):
         # end_mvt2 = resbehav[5]
         # dur_mvt2 = resbehav[6]
         varmse = resbehav[7]
+        print("varmse=", varmse)
         varcoactpenality = resbehav[8]
         # varcoact = resbehav[9]
         err = varmse+varcoactpenality
         # coactpenality = varcoactpenality  # values calculated from adapted
         # coact = varcoact                  # template used to get varmse
-        resbehav = resbehav[:8]  # remove coactpenality and coact
+        resbehav = resbehav[:8]  # remove coactpenality, coact...
         behavElts = np.concatenate([mse_coact[0], resbehav])
 
 # TODO : continuer
@@ -146,8 +147,9 @@ def exec_CMAeFromGUI(win, optSet, projMan):
         # ========================================================
         win.plotBhvSet(nptabBehavElts, nppair_param_mseCoact, 0, 1)
         # ========================================================
-
+        
         affiche_liste(behavElts)
+        
         print()     # print is necessary because affiche_liste ends with ","
         win.add_pair(pair_param_mseCoact, behavElts)
         if len(result) > 5:     # if a chart was saved...
