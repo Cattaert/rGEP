@@ -168,6 +168,10 @@ Modified February 25, 2025 (D. Cattaert):
 Modified July 19, 2025 (D. Cattaert):
     Bugs fixed in runTrials() & savesChartAndAsimToTmpBestChart() procedures so
     that asaved sim files correspond to the saved charts.
+Modified August 21, 2025 (D. Cattaert):
+    Bug fixed in runTrials()  & savesChartAndAsimToTmpBestChart() procedures to
+    avoid problems with missing chartfiles in resultFiles. If this occurs, the
+    projMan.run() procedure is re-launched
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -4945,7 +4949,7 @@ def savesChartAndAsimToTmpBestChart(data_behav, deb, preTot, pre, dstdir,
             # We retrieve the name of the asim file
             chartN = optSet.chartName[optSet.selectedChart]
             # We retrieve the name of the chart we get the parameters from
-            if (simulNb + 1) < 10:
+            if simulNb < 10:
                 dstfile = simN + "-" + preTot + str(simulNb)
             else:
                 dstfile = simN + "-" + str(simulNb)
@@ -5051,7 +5055,7 @@ def runTrials(win, paramserie, paramserieSlices,
         if txtchart == []:
             win.paramserie = paramserie
             win.paramserieSlices = paramserieSlices
-            win.stop()
+
         win.lst_bestchart.append(txtchart)
         # txtchart = win.lst_bestchart[idx]
         comment = "mse:{:.4f}; coactP:{:.4}".format(mse, coactP)
@@ -5176,8 +5180,14 @@ def runTrials(win, paramserie, paramserieSlices,
                 pre = "0"
             else:
                 pre = ""
-            tab = readTablo(folders.animatlab_result_dir,
-                            findTxtFileName(model, optSet, pre, idx+1))
+            fileName = findTxtFileName(model, optSet, pre, idx+1)
+            if not os.path.isfile(folders.animatlab_result_dir +"/"+ fileName):
+                print()
+                print("WARNING!!!... chart file misssing: ", fileName)
+                print("... Restarting run")
+                projMan.run(cores=paramserieSlices[run])
+
+            tab = readTablo(folders.animatlab_result_dir, fileName)
             lst_tab.append(tab)
             # ================================================================
             quality = testquality(optSet, tab, optSet.template, "",

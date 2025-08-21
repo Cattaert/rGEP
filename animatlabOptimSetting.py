@@ -9,12 +9,7 @@ Modified February 20, 2023 (D. Cattaert):
 Modified July 19, 2024 (D. Cattaert):
     enableSynNS() introduced to set to 0 SynAmp of disblaed synapses.
     This call is made in actualizeparamVSCD() method, that is called in 
-    GUI_AnimatPar.py before savinf the parameters
-    
-Modified February 20, 2025 (D. Cattaert):
-    Four elements added:
-        self.dic_stim, self.sorted_dic_stim,
-        self.dic_syn, self.sorted_dic_syn
+    GUI_AnimatPar.py before savinf the parameters.
 """
 
 import random
@@ -128,7 +123,6 @@ class OptimizeSimSettings():
         self.listeNeuronsFR = liste(self.NeuronsFR)
         self.tab_connexionsFR = affichConnexionsFR(model, self,
                                                    self.SynapsesFR, 0)
-        
         self.win = None
         self.synSimSet = None
         self.stimSimSet = None
@@ -376,14 +370,13 @@ class OptimizeSimSettings():
         self.dic_oc_short = {}
         for idx, name in enumerate(self.otherconstraints_names):
             self.dic_oc_short[name] = self.otherconstraints_short_names[idx]
-        
+
         # ################################################################
         #                   ATTENTION !!!
         for phase in range(len(self.allPhasesStim)):
             [listSt, shuffledstims,
              self.lineStart, self.lineEnd,
              self.template] = self.allPhasesStim[phase]
-        self.listSt = listSt
         # here we use only onse phase => phase = 0
         # ################################################################
 
@@ -435,8 +428,6 @@ class OptimizeSimSettings():
         self.timeMes = self.paramMarquez['timeMes']
         self.delay = self.paramMarquez['delay']
         self.eta = self.paramMarquez['eta']
-        
-        
 
     def actualizeparamVSCD(self):
         print()
@@ -588,9 +579,8 @@ class OptimizeSimSettings():
         self.tab_stims = affichExtStim(self, self.ExternalStimuli, 0)
         self.tab_neurons = affichNeurons(self, self.Neurons, 0)
         self.tab_neuronsFR = affichNeuronsFR(self, self.NeuronsFR, 0)
-
-        
         self.synsTot, self.synsTotFR = [], []
+
         # ###########   Connexions   #########################
         # --------------------------------------
         # Synapses between 'voltage' neurons
@@ -692,10 +682,8 @@ class OptimizeSimSettings():
             [listSt, self.shuffledstims,
              self.lineStart, self.lineEnd,
              self.template] = self.allPhasesStim[phase]
-        self.listSt = listSt
         # here we use only onse phase => phase = 0
         # ################################################################
-        self.dic_stim = {}
         if self.fromAsim:
             print("stim from asim:")
         else:
@@ -786,7 +774,6 @@ class OptimizeSimSettings():
                     self.stimParName.append(temp)
                     self.xparName.append(temp)
                     print(temp, rx0)
-                    self.dic_stim[temp] = rx0
                     # self.upper.append(1.)
                     # self.lower.append(0.)
                     x0 = (rx0-stimMin)/(stimMax-stimMin)
@@ -799,7 +786,6 @@ class OptimizeSimSettings():
                     upper = x0 + delta
                     self.upper.append(upper)
 
-        self.dic_spiking_syn = {}
         deb = len(self.stimParName)
         for synparam in range(len(self.seriesSynParam)):
             synparamName = self.seriesSynParam[synparam]
@@ -829,7 +815,6 @@ class OptimizeSimSettings():
                             else:
                                 rx0 = self.realx0[deb + idx]
                             print(rx0, "uS")
-                            self.dic_spiking_syn[temp] = rx0
                             realdelta = float(synMax - synMin) *\
                                 self.spanSyn / 100
                             reallower = max((rx0 - realdelta), synMin)
@@ -847,69 +832,63 @@ class OptimizeSimSettings():
                             upper = x0 + delta
                             self.upper.append(upper)
 
-        self.dic_nonspiking_syn = {}
         deb = len(self.stimParName) + len(self.synParName)
-        try:
-            for synparam in range(len(self.seriesSynNSParam)):
-                synparamName = self.seriesSynNSParam[synparam]
-                if synparamName == 'SynAmp':
-                    if self.tab_connexions != []:
-                        tabvalrealsynxO = []
+        for synparam in range(len(self.seriesSynNSParam)):
+            synparamName = self.seriesSynNSParam[synparam]
+            if synparamName == 'SynAmp':
+                if self.tab_connexions != []:
+                    tabvalrealsynxO = []
+                    if self.fromAsim:
+                        print("synNS from asim:")
+                    else:
+                        print("synNS from realx0:")
+                    for idx, syn in enumerate(self.synList):
+                        if self.tab_connexions[syn][5] == 'NonSpikingChemical':
+                            synMax = self.maxSynAmp
+                            rx0 = self.tab_connexions[syn][1]
+                            tabvalrealsynxO.append(rx0)
+                        maxval = max(tabvalrealsynxO)
+                        if maxval > synMax:
+                                synMax = maxval
+                                self.maxSynAmp = maxval
+                                print("WARNING: SynAmp larger than synMax...")
+                    for idx, syn in enumerate(self.synList):
+                        synapseTempID = self.Connexions[syn].\
+                            find("SynapseTypeID").text
+                        synapseTempName = self.model.\
+                            getElementByID(synapseTempID).\
+                            find("Name").text
+                        temp = synapseTempName + "." + synparamName
+                        print(self.tab_connexions[syn][5], end=' ')
+                        print(temp, end=' ')
+                        self.synNSParName.append(temp)
+                        self.xparName.append(temp)
+                        synMin = 0.
+                        self.realxMax.append(synMax)
+                        self.realxMin.append(synMin)
                         if self.fromAsim:
-                            print("synNS from asim:")
+                            rx0 = self.tab_connexions[syn][1]
+                            self.realx0.append(rx0)
                         else:
-                            print("synNS from realx0:")
-                        for idx, syn in enumerate(self.synList):
-                            if self.tab_connexions[syn][5] == 'NonSpikingChemical':
-                                synMax = self.maxSynAmp
-                                rx0 = self.tab_connexions[syn][1]
-                                tabvalrealsynxO.append(rx0)
-                            maxval = max(tabvalrealsynxO)
-                            if maxval > synMax:
-                                    synMax = maxval
-                                    self.maxSynAmp = maxval
-                                    print("WARNING: SynAmp larger than synMax...")
-                        for idx, syn in enumerate(self.synList):
-                            synapseTempID = self.Connexions[syn].\
-                                find("SynapseTypeID").text
-                            synapseTempName = self.model.\
-                                getElementByID(synapseTempID).\
-                                find("Name").text
-                            temp = synapseTempName + "." + synparamName
-                            print(self.tab_connexions[syn][5], end=' ')
-                            print(temp, end=' ')
-                            self.synNSParName.append(temp)
-                            self.xparName.append(temp)
-                            synMin = 0.
-                            self.realxMax.append(synMax)
-                            self.realxMin.append(synMin)
-                            if self.fromAsim:
-                                rx0 = self.tab_connexions[syn][1]
-                                self.realx0.append(rx0)
-                            else:
-                                rx0 = self.realx0[deb + idx]
-                            print(rx0, "uS")
-                            self.dic_nonspiking_syn[temp] = rx0
-                            realdelta = float(synMax - synMin) *\
-                                self.spanSyn / 100
-                            reallower = max((rx0 - realdelta), synMin)
-                            self.reallower.append(reallower)
-                            realupper = min((rx0 + realdelta), synMax)
-                            self.realupper.append(realupper)
-                            # self.upper.append(1.)
-                            # self.lower.append(0.)
-                            x0 = (rx0-synMin)/(synMax-synMin)
-                            self.x0.append(x0)
-                            delta = self.spanSyn / 100
-                            lower = max((x0 - delta), 0)
-                            self.lower.append(lower)
-                            # upper = min((x0 + delta), 1)
-                            upper = x0 + delta
-                            self.upper.append(upper)
-        except Exception as e:
-            print(e)
+                            rx0 = self.realx0[deb + idx]
+                        print(rx0, "uS")
+                        realdelta = float(synMax - synMin) *\
+                            self.spanSyn / 100
+                        reallower = max((rx0 - realdelta), synMin)
+                        self.reallower.append(reallower)
+                        realupper = min((rx0 + realdelta), synMax)
+                        self.realupper.append(realupper)
+                        # self.upper.append(1.)
+                        # self.lower.append(0.)
+                        x0 = (rx0-synMin)/(synMax-synMin)
+                        self.x0.append(x0)
+                        delta = self.spanSyn / 100
+                        lower = max((x0 - delta), 0)
+                        self.lower.append(lower)
+                        # upper = min((x0 + delta), 1)
+                        upper = x0 + delta
+                        self.upper.append(upper)
 
-        self.dic_FR_syn = {}
         deb = len(self.stimParName) + len(self.synParName) +\
             len(self.synNSParName)
         for synparam in range(len(self.seriesSynFRParam)):
@@ -934,7 +913,6 @@ class OptimizeSimSettings():
                         else:
                             rx0 = self.realx0[deb + idx]
                         print(rx0)
-                        self.dic_FR_syn[temp] = rx0
                         if rx0 >= 0:
                             synMax = self.maxWeight
                             synMin = 0.
@@ -959,29 +937,7 @@ class OptimizeSimSettings():
                         # upper = min((x0 + delta), 1)
                         upper = x0 + delta
                         self.upper.append(upper)
-        """
-        self.dic_stim = {}
-        for stim in self.tab_stims:
-            if stim[5] == 'True':
-                st_name = stim[0]
-                curr = stim[3]*1e9
-                curr = round(curr * 1000)/1000
-                self.dic_stim[st_name] = curr
-        sorted_stim_list = sorted(self.dic_stim.items())
-        self.sorted_dic_stim = {}
-        [self.sorted_dic_stim.update({k:v}) for k,v in sorted_stim_list] 
-        
-        self.dic_syn = {}
-        for idx, syn in enumerate(self.tab_connexions):
-            if idx not in self.disabledSynNbs + self.dontChangeSynNbs:
-                syn_name = syn[0]
-                cond = syn[1]
-                cond = round(cond * 1000)/1000
-                self.dic_syn[syn_name] = cond
-        sorted_syn_list = sorted(self.dic_syn.items())
-        self.sorted_dic_syn = {}
-        [self.sorted_dic_syn.update({k:v}) for k,v in sorted_syn_list]
-        """
+
         self.struct_param = []
         for st in range(len(self.stimParName)):
             self.struct_param.append("st")
