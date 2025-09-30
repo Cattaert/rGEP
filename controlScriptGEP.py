@@ -143,7 +143,18 @@ Modified February 20, 2025 (D. Cattaert):
             if nomPar in otherconstraints_names:
                 other_constraints[nomPar] = float(valPar)
         print(other_constraints)
-        optSet.other_constraints = other_constraints  
+        optSet.other_constraints = other_constraints
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values are now set in controlScriptGEP
+    All methods and functions have been modified accordingly in optimization.py
+    and in GEP_GUI.py and related scripts, and in MakeGraphs.py
+    The value of win.errThr and win.coactThr are changed from the controlScript
+    script that changes also the related buttons values in the GUI, The name of
+    the folders created by the script have been simplified to add the
+    information about errThr and coactThr in the followinf directories:
+        1_CMAes_IDXXXX_span100_errT12.0coT0.6
+        1_VSCD_IDXXXX_span100_errT12.0coT0.6
+        2_rGEP_IDXXXX_seeds00_span0.5_errT12.0coT0.6 
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -506,6 +517,16 @@ def sets_randGEPParam(tabscript, line):
             win.GEPauto = int(valPar)
             if win.GEPauto == 1:
                 win.chkBx_autoGEP.setChecked(True)
+        if nomPar == "errThr":
+            errThr = float(valPar)
+            win.editValueErrThr.setText(str(errThr))
+            print("errThr:", errThr)
+            win.errThr = errThr
+        if nomPar == "coactThr":
+            coactThr = float(valPar)
+            win.editValueCoactThr.setText(str(coactThr))
+            print("coactThr:", coactThr)
+            win.coactThr = coactThr
 
         # =====================   In case auto = 0   =========================
         # Define the parameters of the goal to reach
@@ -587,6 +608,14 @@ def SetsCMAEsParam(tabscript, line):
             nbTotCMAesRuns = int(valPar)
             win.valueLine3.setText(str(nbTotCMAesRuns))
             print("nbTotCMAesRuns:", nbTotCMAesRuns)
+        if nomPar == "errThr":
+            errThr = float(valPar)
+            win.editValueErrThr.setText(str(errThr))
+            print("errThr:", errThr)
+        if nomPar == "coactThr":
+            coactThr = float(valPar)
+            win.editValueCoactThr.setText(str(coactThr))
+            print("coactThr:", coactThr)
     nomPar, valPar = extractParam(tabscript[line+1][0])
     if nomPar == "span" or nomPar == "fourch":
         set_span_par_name(valPar)
@@ -632,6 +661,14 @@ def SetsVSCDParam(tabscript, line):
             optSet.nbepoch = int(valPar)
             win.nbepochValueLine.setText(str(optSet.nbepoch))
             print("nbepoch:", optSet.nbepoch)
+        if nomPar == "errThr":
+            errThr = float(valPar)
+            win.editValueErrThr.setText(str(errThr))
+            print("errThr:", errThr)
+        if nomPar == "coactThr":
+            coactThr = float(valPar)
+            win.editValueCoactThr.setText(str(coactThr))
+            print("coactThr:", coactThr)
     nomPar, valPar = extractParam(tabscript[line+1][0])
     if nomPar == "span" or nomPar == "fourch":
         set_span_par_name(valPar)
@@ -739,6 +776,8 @@ def readCommand(tabscript, par, line, angles, const):
         from makeGraphs import GEPGraphsMetrics
         MyWin = GUI_Graph()
         MyWin.optSet = optSet
+        MyWin.errThr = win.errThr
+        MyWin.coactThr = win.coactThr
         MyWin.behav_col = win.behav_col
         win.hide()
         win.mvtPlot.hide()

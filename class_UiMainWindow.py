@@ -8,6 +8,17 @@ Modified February 20, 2023 (D. Cattaert):
     Modifications made also in GEP_GUI, accordingly
 Modified February 23, 2023 (D. Cattaert):
     pg.graphicWindow replaced by pg.GraphicsLayoutWidget
+
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -358,19 +369,28 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         # self.chkBx_cost_OK = QtWidgets.QCheckBox("chkBx_cost_OK")
         # self.chkBx_cost_OK.setChecked(False)
         # layoutLine8.addWidget(self.chkBx_cost_OK)
-        labelGravity = QtWidgets.QLabel("Gravity:")
-        labelGravity.setFixedWidth(40)
-        self.editValueGravity = QtWidgets.QLineEdit("-9.81")
-        self.editValueGravity.setFixedWidth(40)
-        layoutLine8.addWidget(labelGravity)
-        layoutLine8.addWidget(self.editValueGravity)
+        labelErrThr = QtWidgets.QLabel("ErrThr:")
+        labelErrThr.setFixedWidth(35)
+        self.editValueErrThr = QtWidgets.QLineEdit("1.0")
+        self.editValueErrThr.setFixedWidth(40)
+        layoutLine8.addWidget(labelErrThr)
+        layoutLine8.addWidget(self.editValueErrThr)
+        # ------------------------------------------------
+        layoutLine8.addItem(spacerItem)    # allows line expansion
+        # ------------------------------------------------
+        labelCoactThr = QtWidgets.QLabel("CoactThr:")
+        labelCoactThr.setFixedWidth(50)
+        self.editValueCoactThr = QtWidgets.QLineEdit("0.1")
+        self.editValueCoactThr.setFixedWidth(40)
+        layoutLine8.addWidget(labelCoactThr)
+        layoutLine8.addWidget(self.editValueCoactThr)
         # ------------------------------------------------
         layoutLine8.addItem(spacerItem)    # allows line expansion
         # ------------------------------------------------
         labelCoactPen1 = QtWidgets.QLabel("  Coactpenality1:")
         labelCoactPen1.setFixedWidth(80)
         self.valueCoactPen1 = QtWidgets.QLineEdit("500")
-        self.valueCoactPen1.setFixedWidth(30)
+        self.valueCoactPen1.setFixedWidth(32)
         layoutLine8.addWidget(labelCoactPen1)
         layoutLine8.addWidget(self.valueCoactPen1)
         # ------------------------------------------------
@@ -379,11 +399,23 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         labelCoactPen2 = QtWidgets.QLabel("  Coactpenality2:")
         labelCoactPen2.setFixedWidth(80)
         self.valueCoactPen2 = QtWidgets.QLineEdit("500")
-        self.valueCoactPen2.setFixedWidth(30)
+        self.valueCoactPen2.setFixedWidth(32)
         layoutLine8.addWidget(labelCoactPen2)
         layoutLine8.addWidget(self.valueCoactPen2)
-
         buttonLayout0.addLayout(layoutLine8)
+        # ================================================
+        """ nineth line """
+        layoutLine9 = QtWidgets.QHBoxLayout()
+        labelGravity = QtWidgets.QLabel("Gravity:")
+        labelGravity.setFixedWidth(40)
+        self.editValueGravity = QtWidgets.QLineEdit("-9.81")
+        self.editValueGravity.setFixedWidth(40)
+        layoutLine9.addWidget(labelGravity)
+        layoutLine9.addWidget(self.editValueGravity)
+        # ------------------------------------------------
+        layoutLine9.addItem(spacerItem)    # allows line expansion
+        # ------------------------------------------------
+        buttonLayout0.addLayout(layoutLine9)
         # ================================================
 
         # ================================================

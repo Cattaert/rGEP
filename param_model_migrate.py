@@ -1130,6 +1130,14 @@ if __name__ == '__main__':
         projMan = optSet.projMan
         setMotorStimsOff(model, optSet.motorStimuli)
         asimName = os.path.split(model.asimFile)[-1]
+    testDir = animatsimdir + "/Test"
+    optSet.testDir = testDir
+    if os.path.exists(testDir):
+        GEPdataDir = testDir + "/GEPdata"
+        parfilename = "GEPdata00.par"
+        completeparfilename = os.path.join(GEPdataDir, parfilename)
+        if  os.path.exists(completeparfilename):
+            optSet.datastructure = load_datastructure(completeparfilename)    
     datastructure = optSet.datastructure
     if len(datastructure) > 0:
         errList = geterrListfromDatastructure(datastructure)

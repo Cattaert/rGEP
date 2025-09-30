@@ -12,6 +12,17 @@ Modified February 01, 2024 (D. Cattaert):
     The last line of he function "exec_CMAeFromGUI()" has been secured with a
     Try...
     except...
+
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 
 import os
@@ -294,7 +305,8 @@ def exec_CMAeFromGUI(win, optSet, projMan):
                 [optSet.spanStim, optSet.spanSyn,
                  [optSet.xCoactPenality1, optSet.xCoactPenality2],
                  optSet.cmaes_sigma,
-                 besterrList, bestchartList, bestparamList, [optSet.gravity]])
+                 besterrList, bestchartList, bestparamList, [optSet.gravity],
+                 [win.errThr, win.coactThr]])
     # ----------------------------------------------------------------
     # actualize optSet.x0 to the best result of CMAES
     (optSet.x0, order_series) = findClosestParam([0, 0], nbpar, optSet,

@@ -172,6 +172,16 @@ Modified August 21, 2025 (D. Cattaert):
     Bug fixed in runTrials()  & savesChartAndAsimToTmpBestChart() procedures to
     avoid problems with missing chartfiles in resultFiles. If this occurs, the
     projMan.run() procedure is re-launched
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -4683,7 +4693,7 @@ def findClosestParam(mse_coact_obj, nbpar, optSet, affich=0):
 
 
 def findClosestPair_behav(win, behav_aim, df_bhv_selected,
-                          startseq, behav_col, mseThr, optSet, affich=0):
+                          startseq, behav_col, errThr, optSet, affich=0):
     objarr = np.array(behav_aim)
     order_series = []
     closest_behav = np.array([])
@@ -4899,7 +4909,7 @@ def saveBestpairtoAproj(win, optSet, typ, folders, model, projMan):
 
 def saveBestChart(bestSimulNb, runType, srcdir, comment, optSet, folders,
                   model):
-    chartname = findTxtFileName(model, optSet, "", bestSimulNb + 1)
+    chartname = findTxtFileName(model, optSet, "", bestSimulNb)
     bestchart = readTabloTxt(srcdir, chartname)
     savedir = runType + "ChartFiles"
     destRootName = runType + "_chart"
@@ -5035,6 +5045,7 @@ def runTrials(win, paramserie, paramserieSlices,
     win.optSet.paramserieSlices = paramserieSlices
     model = optSet.model
     folders = optSet.folders
+    errThr = win.errThr
 
     def saves_chart_asim_aproj(behav):
         """
@@ -5252,7 +5263,7 @@ def runTrials(win, paramserie, paramserieSlices,
                                             
             elif procName == "GEP":  # the aim is to save all acceptable behavs
                 # (if savechart == 2)  or only the best (savechart == 1)
-                if (err < 1) and (abs(startangle) < 1) and (endangle > 10):
+                if (err < errThr) and (abs(startangle) < 1) and (endangle >10):
                     saveBad = False
                     goodChartInRun = True
                     goodChartFound = True
@@ -5596,7 +5607,7 @@ def run_listparamsets(win, listparSets_badspans, nbEpochParam, nbRunParam,
     st_err = 1
     minampl = 10
     max_coactpenalty = 0.01
-    mseThr = win.mseThr
+    errThr = win.errThr
 
     lst_new_df_bhv = []
     lst_new_df_par = []
@@ -5652,7 +5663,7 @@ def run_listparamsets(win, listparSets_badspans, nbEpochParam, nbRunParam,
             (df_behav, df_param) = res2
             df_newvalidbhv = copy.deepcopy(df_behav)
             df_newvalidpar = copy.deepcopy(df_param)
-            varmse_OK = df_newvalidbhv['varmse'] <= mseThr
+            varmse_OK = df_newvalidbhv['varmse'] <= errThr
             df_newvalidbhv = df_newvalidbhv[varmse_OK]
             df_newvalidpar = df_newvalidpar[varmse_OK]
             list_valid = list(df_newvalidbhv["rgserie"])

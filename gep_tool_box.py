@@ -10,6 +10,16 @@ aim_behav_extend() procedure uses a new algoruthm to find behaviors in the
 periphery of the behavio domain. The new algorithm is lodd, tha requires to
 install "scikit-learn" package (conda install scikit-learn)
 
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 from math import log10
 import os
@@ -111,7 +121,7 @@ def aim_behav_extend(win, df_bhv_selected, opt_set):
         win.exec_gep_rand(opt_set, aim_list=aim_list, typ_gep="extend",
                           df_bhv_selected=df_bhv_selected)
         # ###############################################################
-        df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        df_bhvremain = win.update_df_bhvremain(errThr=None)
         """
         if not df_bhvremain.empty:
             win.plot_3D_density_map(df_bhvremain, step=0.02,
@@ -172,7 +182,7 @@ def aim_behav_fill(win, df_bhv_selected, opt_set):
         win.exec_gep_rand(opt_set, aim_list=min_list, typ_gep="fill",
                           df_bhv_selected=df_bhv_selected)
         # ###############################################################
-        df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        df_bhvremain = win.update_df_bhvremain(errThr=None)
         if not df_bhvremain.empty:
             win.plot_3D_density_map(df_bhvremain, step=step,
                                     incline=60, rot=-60)
@@ -185,14 +195,17 @@ def find_aim_behav(win, opt_set):
         In :
     """
     print("looking for aimBehav, ", end=' ')
-    df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+    # df_bhvremain = win.update_df_bhvremain(errThr=None)
+    df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                           maxCoactP=win.coactThr)
     print(len(df_bhvremain), "behavs in df_bhvremain")
     if not df_bhvremain.empty:
         for extend_nb in range(win.nbGEPextend):
             print("extend N°", extend_nb, "/ last = ", win.nbGEPextend-1)
             win.extend_nb = extend_nb
             aim_behav_extend(win, df_bhvremain, opt_set)
-            df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+            df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                                   maxCoactP=win.coactThr)
             win.test_for_save_map_bhv(df_bhvremain, affich=1)
             print("Fin extend N°", extend_nb)
             print
@@ -203,19 +216,22 @@ def find_aim_behav(win, opt_set):
             for extend_nb in range(win.nbGEPextend):
                 win.extend_nb = extend_nb
                 aim_behav_extend(win, df_bhv_selected, opt_set)
-                df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+                df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                                       maxCoactP=win.coactThr)
                 win.test_for_save_map_bhv(df_bhvremain, affich=1)
                 if not df_bhvremain.empty:
                     df_bhv_selected = df_bhvremain
                 else:
                     df_bhv_selected = win.find_df_bvh_2ndChoice()
 
-    df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+    df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                           maxCoactP=win.coactThr)
     if not df_bhvremain.empty:
         for fill_nb in range(win.nbGEPfill):
             win.fill_nb = fill_nb
             aim_behav_fill(win, df_bhvremain, opt_set)
-            df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+            df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                                   maxCoactP=win.coactThr)
             win.test_for_save_map_bhv(df_bhvremain, affich=1)
     else:
         df_bhv_selected = win.find_df_bvh_2ndChoice()
@@ -223,7 +239,8 @@ def find_aim_behav(win, opt_set):
             for fill_nb in range(win.nbGEPfill):
                 win.fill_nb = fill_nb
                 aim_behav_fill(win, df_bhv_selected, opt_set)
-                df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+                df_bhvremain = win.update_df_bhvremain(errThr=win.errThr,
+                                                       maxCoactP=win.coactThr)
                 win.test_for_save_map_bhv(df_bhvremain, affich=1)
                 if not df_bhvremain.empty:
                     df_bhv_selected = df_bhvremain
@@ -262,7 +279,7 @@ def exec_gep_rand(win, opt_set, aim_list=[], typ_gep="", df_bhv_selected=None):
              order_series) = findClosestPair_behav(win, aim_bhv,
                                                    df_bhv_selected,
                                                    startseq, win.behav_col,
-                                                   win.mseThr, opt_set)
+                                                   win.errThr, opt_set)
             closest_param_set = opt_set.pairs[pairs_rg][0:len(opt_set.x0)]
             paramserie = closest_param_set
             lst_closest_bhv.append(closest_behav)
@@ -297,14 +314,14 @@ def exec_gep_rand(win, opt_set, aim_list=[], typ_gep="", df_bhv_selected=None):
                                    pen=None, symbol='+',
                                    markersize=25, symbolBrush='b')
         # for idx in range(nbRunBehav):
-        df_bhv_selected = win.update_df_bhvremain(mseThr=1.0)
+        df_bhv_selected = win.update_df_bhvremain(errThr=None)
         if not df_bhv_selected.empty:
             (closest_behav, closest_dist, pairs_rg,
              order_series) = findClosestPair_behav(win, win.behav_aim,
                                                    df_bhv_selected,
                                                    startseq,
                                                    win.behav_col,
-                                                   win.mseThr, opt_set)
+                                                   win.errThr, opt_set)
             if closest_behav is not None:
                 # behav_obj = findRandObjective(closestDist,
                 #                               closest_behav, span)
@@ -338,7 +355,7 @@ def exec_gep_rand(win, opt_set, aim_list=[], typ_gep="", df_bhv_selected=None):
 # #############################################################################
                 exec_rand_param(win, run_type, opt_set)
 # #############################################################################
-                df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+                df_bhvremain = win.update_df_bhvremain(errThr=None)
                 if not df_bhvremain.empty:
                     win.test_for_save_map_bhv(df_bhvremain, affich=1)
                 win.startseqSet = []

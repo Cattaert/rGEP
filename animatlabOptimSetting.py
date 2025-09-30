@@ -10,6 +10,17 @@ Modified July 19, 2024 (D. Cattaert):
     enableSynNS() introduced to set to 0 SynAmp of disblaed synapses.
     This call is made in actualizeparamVSCD() method, that is called in 
     GUI_AnimatPar.py before savinf the parameters.
+
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 
 import random
@@ -260,6 +271,7 @@ class OptimizeSimSettings():
         self.limQuality = 0.0001
         self.defaultval = 100000
         self.limits = []
+        self.errThr = 1.0
         self.mvtTemplate = formTemplateSmooth(self.rate, self.startMvt1,
                                               self.endMvt1, self.angle1,
                                               self.startMvt2, self.endMvt2,

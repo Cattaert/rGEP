@@ -95,6 +95,16 @@ modified March 18, 2025 (D. Cattaert):
     before it was a text, now it is a float.
 modified July 19, 2025 (D. Cattaert):
     minor changes to improve GEP
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
 """
 
 import pyqtgraph as pg
@@ -251,6 +261,8 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     def to_init(self):
         # self.behav_col = [3, 8]  # 3 is "endangle"; 8 is "dur_mvt2"
         self.behav_col = [3, 6]  # 3 is "endangle"; 6 is "max_speed"
+        self.editValueErrThr.textChanged.connect(self.actualizeErrThr)
+        self.editValueCoactThr.textChanged.connect(self.actualizeCoactThr)
 
         self.bg.buttonClicked[QtWidgets.QAbstractButton].connect(self.btngroup)
         self.btn_systParam.clicked.connect(self.do_syst_param)
@@ -347,6 +359,10 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         self.bestchart = []
         self.DEFAULT_span_VALUE = 100.0
         self.glob_span = 100.0
+        optSet.errThr = float(self.editValueErrThr.text())
+        self.errThr = optSet.errThr
+        optSet.coactThr = float(self.editValueCoactThr.text())
+        self.coactThr = optSet.coactThr
         optSet.xCoactPenality1 = float(self.valueCoactPen1.text())
         optSet.xCoactPenality2 = float(self.valueCoactPen2.text())
         optSet.gravity = float(self.editValueGravity.text())
@@ -437,7 +453,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             self.listdicmsethr[0][name] = self.list_mse_thr_val[idx]
         self.firstSelectedMseThr = []
         self.dicSelectedMseThr = {}
-        self.mseThr = 1.
+        # self.errThr = 1.
         self.df_parremain = None
         self.df_bhvremain = None
         self.source_df_parremain = None
@@ -509,6 +525,29 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         self.mvtTemplate = np.array(optSet.mvtTemplate)
         self.select_paramSer = []
         self.optSet = optSet
+
+    def actualizeErrThr(self):
+        if self.editValueErrThr.text() != '':
+            optSet.errThr = float(self.editValueErrThr.text())
+            self.errThr = optSet.errThr
+            self.clearBhv()
+            if optSet.behavs is not None:
+                if len(optSet.behavs) > 0:
+                    self.plotBhvSet(optSet.behavs, optSet.pairs, 0,
+                                    len(optSet.behavs)-1)
+            print("ErrThr changed to:", self.errThr)
+
+    def actualizeCoactThr(self):
+        if self.editValueCoactThr.text() != '':
+            optSet.coactThr = float(self.editValueCoactThr.text())
+            self.coactThr = optSet.coactThr
+            self.clearBhv()
+            if optSet.behavs is not None:
+                if len(optSet.behavs) > 0:
+                    self.plotBhvSet(optSet.behavs, optSet.pairs, 0,
+                                    len(optSet.behavs)-1)
+            print("CoactThr changed to:", self.coactThr)
+            
 
     def save_paramNames_bhvNames(self):
         fileparname = "xparnames.txt"
@@ -1927,16 +1966,20 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         return (df_behav, df_param)
 
     def plotBhvSet(self, behavs, pairs, startseq, endseq,
-                   dic_mse_filter={'mse_threshold1': 1.0},
+                   dic_mse_filter={},
                    dic_cst_filter={},
                    by_series=None,
-                   max_coactP=0.01):
+                   max_coactP=None):
         """
         plots the duration against the amplitude of movements
         only movements for which    mse < mse_threshold
                                     startangle # 0°
                                     coactP < 0.01
         """
+        if dic_mse_filter == {}:
+            dic_mse_filter={'mse_threshold1': self.errThr}
+        if max_coactP is None:
+            max_coactP = self.coactThr
         listdf_bhv, listdf_par = self.get_df_remain(behavs, pairs,
                                                     startseq, endseq,
                                                     dic_mse_filter,
@@ -1950,14 +1993,18 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
 # TODO : to continue GEP procedures
 
     def get_df_remain(self, behavs, pairs, startseq, endseq,
-                      dic_mse_filter={'mse_threshold1': 1.0},
+                      dic_mse_filter={},
                       dic_cst_filter={},
                       by_series=None,
-                      max_coactP=0.01):
+                      max_coactP=None):
+        if dic_mse_filter == {}:
+            dic_mse_filter={'mse_threshold1': self.errThr}
         if len(dic_mse_filter) == 0:
-            dic_mse_filter = {'mse_threshold1': 1.0}
+            dic_mse_filter = {'mse_threshold1': self.errThr}
+        if max_coactP is None:
+            max_coactP = self.coactThr
         msethrname = list(dic_mse_filter.keys())[0]
-        mseThr = dic_mse_filter[msethrname]
+        errThr = dic_mse_filter[msethrname]
 
         # =====================================================================
         (df_behav, df_param) = self.selctValidBehav(behavs, pairs,
@@ -1970,7 +2017,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         df_bhvremain = copy.deepcopy(df_behav)
         df_parremain = copy.deepcopy(df_param)
 
-        varmse_OK = df_bhvremain['varmse'] <= mseThr
+        varmse_OK = df_bhvremain['varmse'] <= errThr
         df_bhvremain = df_bhvremain[varmse_OK]
         df_parremain = df_parremain[varmse_OK]
         listdf_bhv.append(df_bhvremain)
@@ -1991,11 +2038,11 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
                     if msethrname in list_mse:
                 """
                 for msethrname in list_mse:
-                    mseThr = dic_mse_filter[msethrname]
-                    # print(idx, msethrname, mseThr)
-                    varmse_OK = df_bhvremain['varmse'] <= mseThr
-                    varmse_notOK = df_bhvremain['varmse'] > mseThr
-                    print("mse <", mseThr)
+                    errThr = dic_mse_filter[msethrname]
+                    # print(idx, msethrname, errThr)
+                    varmse_OK = df_bhvremain['varmse'] <= errThr
+                    varmse_notOK = df_bhvremain['varmse'] > errThr
+                    print("mse <", errThr)
                     if len(df_bhvremain[varmse_OK]) > 0:
                         print(df_bhvremain[varmse_OK])
                     else:
@@ -2413,10 +2460,12 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
                      markeredgewidth=2)
         fig.show()
 
-    def update_df_bhvremain(self, mseThr=1.0,
+    def update_df_bhvremain(self, errThr=None,
                             stangl=0, st_err=1,
                             minampl=10, maxCoactP=0.01,
                             default=True):
+        if errThr is None:
+            errThr = self.errThr
         df_bhvremain = []
         behavs = optSet.behavs
         pairs = optSet.pairs
@@ -2432,7 +2481,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             # =====================================================================
             df_bhvremain = copy.deepcopy(df_behav)
             df_parremain = copy.deepcopy(df_param)
-            varmse_OK = df_bhvremain['varmse'] <= mseThr
+            varmse_OK = df_bhvremain['varmse'] <= errThr
             df_bhvremain = df_bhvremain[varmse_OK]
             df_parremain = df_parremain[varmse_OK]
             if default is True:
@@ -2448,7 +2497,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         print("######################################################")
         print(" No behavior data in memory !! --> look for best vmse")
         print("######################################################")
-        df_bhvremain2 = self.update_df_bhvremain(mseThr=100,
+        df_bhvremain2 = self.update_df_bhvremain(errThr=100,
                                                  st_err=20,
                                                  minampl=0,
                                                  maxCoactP=100,
@@ -2558,6 +2607,10 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
 # TODO : debut GEP_rand
 
     def do_GEP_rand(self):
+        optSet.errThr = float(self.editValueErrThr.text())
+        self.errThr = optSet.errThr
+        optSet.coactThr = float(self.editValueCoactThr.text())
+        self.coactThr = optSet.coactThr
         self.nbGEPextend = int(self.value_nbExt.text())
         self.nbGEPfill = int(self.value_nbFill.text())
         optSet.gravity = float(self.editValueGravity.text())
@@ -2566,11 +2619,12 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         if self.modelchanged != 1:
             self.btn_GEPrand.setStyleSheet('QPushButton {background-color: #A3C1DA;\
                                                          color: red;}')
-            # df_bhvremain = self.update_df_bhvremain(mseThr=1.0)
+            # df_bhvremain = self.update_df_bhvremain(errThr=1.0)
             if self.GEPauto == 0:
                 self.exec_gep_rand(optSet)
             else:
-                df_bhvremain = self.update_df_bhvremain(mseThr=1.0)
+                df_bhvremain = self.update_df_bhvremain(errThr=self.errThr,
+                                                        maxCoactP=self.coactThr)
                 if len(df_bhvremain) > 0:
                     find_aim_behav(self, optSet)
                 else:
@@ -2589,6 +2643,10 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     def do_rand_param(self):
         # if self.scrip_mode == "GEP":
         #     self.randParEvol = "varmse"
+        optSet.errThr = float(self.editValueErrThr.text())
+        self.errThr = optSet.errThr
+        optSet.coactThr = float(self.editValueCoactThr.text())
+        self.coactThr = optSet.coactThr
         self.btnstate_MSE()     # verify the status of randParEvol
         self.btnstate_varmse()  # verify the status of randParEvol
         optSet.gravity = float(self.editValueGravity.text())
@@ -2610,6 +2668,10 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         if self.modelchanged != 1:
             self.btn_CMAes.setStyleSheet('QPushButton {background-color: #A3C1DA;\
                                                        color: red;}')
+            optSet.errThr = float(self.editValueErrThr.text())
+            self.errThr = optSet.errThr
+            optSet.coactThr = float(self.editValueCoactThr.text())
+            self.coactThr = optSet.coactThr
             optSet.gravity = float(self.editValueGravity.text())
             setGravity(model, optSet.gravity)
             exec_CMAeFromGUI(self, optSet, projMan)
@@ -2625,6 +2687,10 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     def runVSCDFromGUI(self):
         self.btn_VSCD.setStyleSheet('QPushButton {background-color: #A3C1DA;\
                                                   color: red;}')
+        optSet.errThr = float(self.editValueErrThr.text())
+        self.errThr = optSet.errThr
+        optSet.coactThr = float(self.editValueCoactThr.text())
+        self.coactThr = optSet.coactThr
         optSet.nbepoch = int(self.nbepochValueLine.text())
         optSet.deltacoeff = float(self.deltacoeffValue.text())
         # optSet.nbsyntrials = int(self.nbsyntrialsValue.text())
@@ -2928,6 +2994,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             self.run_selected_param()
             self.search_list_spanValues()
             self.saves_newGEPdata(seedDirCreate=True)
+        self.unselect_clicked()
 
     def editText(self, text):
         text, okPressed = QtWidgets.QInputDialog.getText(self,
@@ -3019,6 +3086,8 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             print("NO seed selected!!!!!")
             print("**** Select bhvs in bhv_window with mouse left clicks ****")
         print(self.selected_bhv)
+        self.df_bhvremain = self.update_df_bhvremain(errThr=self.errThr,
+                                                     maxCoactP=self.coactThr)
         df_bhvremain = self.df_bhvremain
         # if len(df_bhvremain) == 0:
         try:
@@ -3099,16 +3168,16 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
 
         self.newtabBehavElts = []
         self.lst_varmse = []
-        selected_pairs = []
-        selected_bhv = []
+        select_pairs = []
+        select_bhv = []
         lst_paramserie = []        
         listpairs = []
         for sel in self.rg_bhv_selected:
-            selected_pairs.append(optSet.pairs[sel])
+            select_pairs.append(optSet.pairs[sel])
             lst_paramserie.append(optSet.pairs[sel][0: self.nbpar])
-            selected_bhv.append(optSet.behavs[sel])
-        selected_pairs = np.array(selected_pairs)
-        selected_bhv = np.array(selected_bhv)
+            select_bhv.append(optSet.behavs[sel])
+        selected_pairs = np.array(select_pairs)
+        selected_bhv = np.array(select_bhv)
         lst_paramserie = np.array(lst_paramserie)
         self.lst_paramserie = lst_paramserie
         
@@ -3144,7 +3213,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             self.newtabBehavElts.append(newtabBehavElts[0])
 
             """
-            df_bhvremain = self.update_df_bhvremain(mseThr=1.0)
+            df_bhvremain = self.update_df_bhvremain(errThr=1.0)
             for err in lst_err:
                 self.lst_varmse.append(err)
             for idx, chartName in enumerate(self.lst_chartName):
@@ -3212,16 +3281,16 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             filetoremove = os.path.join(srcdir, srcfile)
             os.remove(filetoremove)   
             self.bestchartList = bestchartList
-            selected_pairs = []
-            selected_bhv = []
+            select_pairs = []
+            select_bhv = []
             lst_paramserie = []
         
             for sel in self.rg_bhv_selected:
-                selected_pairs.append(optSet.pairs[sel])
+                select_pairs.append(optSet.pairs[sel])
                 lst_paramserie.append(optSet.pairs[sel][0: self.nbpar])
-                selected_bhv.append(optSet.behavs[sel])
-            self.selected_pairs = np.array(selected_pairs)
-            self.selected_bhv = np.array(selected_bhv)
+                select_bhv.append(optSet.behavs[sel])
+            self.selected_pairs = np.array(select_pairs)
+            self.selected_bhv = np.array(select_bhv)
             lst_paramserie = np.array(lst_paramserie)
             self.lst_paramserie = lst_paramserie
 
@@ -3359,12 +3428,12 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             conditions = [["DicSpanVal.txt"],
                           [optSet.xCoactPenality1, optSet.xCoactPenality2],
                           besterrList, self.bestchartList, bestparamList,
-                          [optSet.gravity]]
+                          [optSet.gravity], [self.errThr, self.coactThr]]
         else:
             conditions = [optSet.spanStim, optSet.spanSyn,
                           [optSet.xCoactPenality1, optSet.xCoactPenality2],
                           besterrList, self.bestchartList, bestparamList,
-                          [optSet.gravity]]
+                          [optSet.gravity], [self.errThr, self.coactThr] ]
 
         startseq = lastrun + 1
         endseq = lastrun + nbsim
@@ -3650,7 +3719,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         print(runType)
 
         # ====== creation of self.df_parremain and df_bhvremain ======
-        df_bhvremain = self.update_df_bhvremain(mseThr=1.0)
+        df_bhvremain = self.update_df_bhvremain(errThr=self.errThr)
         print("{} movements with good varmse".format(len(df_bhvremain)))
 
     def getSimConditions(self):
@@ -3966,7 +4035,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
                  order_series) = findClosestPair_behav(self, aim_bhv,
                                                        df_bhv_selected,
                                                        startseq, self.behav_col,
-                                                       self.mseThr, optSet)
+                                                       self.errThr, optSet)
                 closest_param_set = optSet.pairs[pairs_rg][0:len(optSet.x0)]
                 paramserie = closest_param_set
                 lst_closest_bhv.append(closest_behav)
@@ -4005,14 +4074,14 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
                                         pen=None, symbol='+',
                                         markersize=25, symbolBrush='b')
             # for idx in range(nbRunBehav):
-            df_bhv_selected = self.update_df_bhvremain(mseThr=1.0)
+            df_bhv_selected = self.update_df_bhvremain(errThr=self.mesThr)
             if not df_bhv_selected.empty:
                 (closest_behav, closest_dist, pairs_rg,
                  order_series) = findClosestPair_behav(self, self.behav_aim,
                                                        df_bhv_selected,
                                                        startseq,
                                                        self.behav_col,
-                                                       self.mseThr, optSet)
+                                                       self.errThr, optSet)
                 if closest_behav is not None:
                     # behav_obj = findRandObjective(closestDist,
                     #                               closest_behav, span)
@@ -4046,7 +4115,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
     # #########################################################################
                     exec_rand_param(self, run_type, optSet)
     # #########################################################################
-                    df_bhvremain = self.update_df_bhvremain(mseThr=1.0)
+                    df_bhvremain = self.update_df_bhvremain(errThr=self.errThr)
                     if not df_bhvremain.empty:
                         self.test_for_save_map_bhv(df_bhvremain, affich=1)
                     self.startSet = []
@@ -4369,7 +4438,7 @@ def exec_rand_param(win, runType, optSet, lst_parset=[], typGEP=""):
             # print idx, behav
             win.add_pair(pair_param_mseCoact, behav)
             listpairs.append(pair_param_mseCoact)
-        df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        df_bhvremain = win.update_df_bhvremain(errThr=win.errThr)
         win.test_for_save_map_bhv(df_bhvremain, affich=1)
 
         # ====    creates a dataframe from tabBehavElts   ======
@@ -4404,12 +4473,12 @@ def exec_rand_param(win, runType, optSet, lst_parset=[], typGEP=""):
         conditions = [["DicSpanVal.txt"],
                       [optSet.xCoactPenality1, optSet.xCoactPenality2],
                       besterrList, bestchartList, bestparamList,
-                      [optSet.gravity]]
+                      [optSet.gravity], [win.errThr, win.coactThr]]
     else:
         conditions = [optSet.spanStim, optSet.spanSyn,
                       [optSet.xCoactPenality1, optSet.xCoactPenality2],
                       besterrList, bestchartList, bestparamList,
-                      [optSet.gravity]]
+                      [optSet.gravity], [win.errThr, win.coactThr]]
     mise_a_jour(optSet, datastructure, structNb,
                 runType + "_" + win.randParEvol,
                 lastrun+1, lastrun + nbRandTrial, packetsize,
@@ -4588,7 +4657,7 @@ def exec_list_paramSets(paramserie):
             # print idx, behav
             win.add_pair(pair_param_mseCoact, behav)
             listpairs.append(pair_param_mseCoact)
-        df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        df_bhvremain = win.update_df_bhvremain(errThr=win.errThr)
         win.test_for_save_map_bhv(df_bhvremain, affich=1)
 
         # ====    creates a dataframe from tabBehavElts   ======

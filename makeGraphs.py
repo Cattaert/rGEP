@@ -340,6 +340,22 @@ Modified June 24, 2025 ( D. Cattaert):
         def read_csv_for_df_bhv_neur_par_from_file(self):
             if self.fname is not None:
                 ...
+modified September 04, 2025 (D. Cattaert):
+    errThr and coactThr values is now red from win.errThr and win.coactThr
+    All methods and functions have been modified accordingly in optimization.py
+    The value of win.errThr (that was 1.0 in previous version) is now given in
+    a method from GUI ("setErrThr()").
+    The value of win.coactThr (that was 0.01 in previous version) is now given in
+    a method from GUI ("setErrThr()"). Using this method plus two new buttons,
+    win.errThr and win.coactThr can be changed in the GUI.
+    These two values are incorporated in datastructure (conditons' last list')
+    and saved in GEPdata00.par at each extend and fill.
+    The graphs use now these two new settings (red from datastructure) and they
+    can be changed (via a dialog). This dialog can be call from the first
+    button of the GEPgraphMetric menu. Thes two values are saved in the graphs'
+    titles
+    Suppression of nan elements in selected dataframe for single plot (eiher
+    with a color factor of not)
 """
 import os
 from os import listdir
@@ -3997,6 +4013,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         self.GUI_Gr_obj = GUI_Gr_obj
         # self.scale_x = self.GUI_Gr_obj.scale_x
         # Create some widgets to be placed inside
+        self.setErrThr_btn = QtWidgets.QPushButton('set errThr & coactThr')
+        self.setErrThr_btn.clicked.connect(self.setErrThr)
         self.saveplotbhv_btn = QtWidgets.QPushButton('saveplot bhv map')
         self.saveplotbhv_btn.clicked.connect(self.saveplot_bhv)
         self.saveplobhvtparam_btn = QtWidgets.QPushButton('saveplot bhvparam maps')
@@ -4022,6 +4040,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         self.dist_to_rand_goal_btn.clicked.connect(self.rand_goal_method)
         self.btn_quit = QtWidgets.QPushButton('QUIT')
         self.btn_quit.clicked.connect(self.closeIt)
+        self.behavs = self.GUI_Gr_obj.optSet.behavs
+        self.pairs = self.GUI_Gr_obj.optSet.pairs
 
         # text = QtWidgets.QLineEdit('enter text')
         self.listw = QtWidgets.QListWidget()
@@ -4034,17 +4054,18 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         # layout = QtWidgets..QVBoxLayout()
 
         # Add widgets to the layout in their proper positions
-        layout.addWidget(self.saveplotbhv_btn, 0, 0)        # goes 1st row-left
-        layout.addWidget(self.saveplobhvtparam_btn, 1, 0)   # goes 2nd row-left
-        layout.addWidget(self.behavior_map_btn, 2, 0)       # goes 3d row-left
-        layout.addWidget(self.MSp_ampl_Abaque_btn, 3, 0)    # goes 4th row-left
-        layout.addWidget(self.plot_density_btn, 4, 0)       # goes 5th row-left
-        layout.addWidget(self.density_map_btn, 5, 0)
-        layout.addWidget(self.stability_map_btn, 6, 0)
-        layout.addWidget(self.grid_method_btn, 7, 0)
-        layout.addWidget(self.dist_to_rand_goal_btn, 8, 0)
+        layout.addWidget(self.setErrThr_btn, 0, 0)
+        layout.addWidget(self.saveplotbhv_btn, 1, 0)        # goes 1st row-left
+        layout.addWidget(self.saveplobhvtparam_btn, 2, 0)   # goes 2nd row-left
+        layout.addWidget(self.behavior_map_btn, 3, 0)       # goes 3d row-left
+        layout.addWidget(self.MSp_ampl_Abaque_btn, 4, 0)    # goes 4th row-left
+        layout.addWidget(self.plot_density_btn, 5, 0)       # goes 5th row-left
+        layout.addWidget(self.density_map_btn, 6, 0)
+        layout.addWidget(self.stability_map_btn, 7, 0)
+        layout.addWidget(self.grid_method_btn, 8, 0)
+        layout.addWidget(self.dist_to_rand_goal_btn, 9, 0)
 
-        layout.addWidget(self.btn_quit, 9, 0)      # goes in bottom-left
+        layout.addWidget(self.btn_quit, 10, 0)      # goes in bottom-left
         # layout.addWidget(self.plot, 0, 1, 3, 1)  # plot goes on right side,
         #                                          # spanning 3 rows
         self.setWindowTitle("GEP Metrics and Graphs")
@@ -4068,6 +4089,39 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         self.scale_y = self.GUI_Gr_obj.scale_y
         self.behav_col = self.GUI_Gr_obj.behav_col
         self.bhv_names = self.GUI_Gr_obj.bhv_names
+        self.errThr = self.GUI_Gr_obj.errThr
+        self.coactThr = self.GUI_Gr_obj.coactThr
+        
+    def setErrThr(self):
+        list_entry_name = ["errThr", "coactThr"]
+        list_entry_value = [self.errThr, self.coactThr]
+        #list_value_max = [0.2, 5, 5]
+        window_name = "Enter errThr and coactThr"
+        dicValues = {}
+        for idx, nam in enumerate(list_entry_name):
+            dicValues[nam] = list_entry_value[idx]
+        selected = list(dicValues.keys())
+        typ, text = "sel", "typ"
+        dicValues = set_values_in_list(dicValues, selected, typ, text)
+        self.errThr = float(dicValues["errThr"])
+        self.coactThr = float(dicValues["coactThr"])
+        self.GUI_Gr_obj.errThr = self.errThr
+        self.GUI_Gr_obj.coactThr = self.coactThr
+        self.GUI_Gr_obj.mafen.errThr = self.errThr
+        self.GUI_Gr_obj.mafen.coactThr = self.coactThr
+        
+        self.GUI_Gr_obj.mafen.clearBhv()
+        self.GUI_Gr_obj.mafen.plotBhvSet(self.behavs, self.pairs,
+                                         0, len(self.behavs)-1)
+        df_bhvremain = copy.deepcopy(self.GUI_Gr_obj.df_bhvremain)
+        # ========    selection of data by coactP level   =========
+        # print(df_behav)
+        coact_OK = df_bhvremain['coactpen'] < self.coactThr
+        df_behav = df_bhvremain[coact_OK]
+        
+        
+        
+        
 
     def saveplot_bhv(self):
         """
@@ -4198,6 +4252,12 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         GEPdataName = os.path.splitext(strGEPdataName)[0]
         df = copy.deepcopy(df_bhvremain)
         # ==============================================================
+        coact_OK = df['coactpen'] < self.coactThr
+        df = df[coact_OK]
+        # ==============================================================
+        err_OK =  df['varmse'] < self.errThr
+        df = df[err_OK]
+        # ==============================================================
         list_entry_name = ["nbBhvOKs", "X_min", "X_max", "Y_min", "Y_max"]
         nbBhvOKs = len(df)
         behav_col = self.GUI_Gr_obj.behav_col
@@ -4251,7 +4311,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
             path = graph_path
         # titre = "{}/{}".format(path, name)
         baseName = name
-        titre = get_titre(path, baseName)
+        titre = get_titre(path, baseName) + "  errThr: {}  coactThr: {}"
+        titre = titre.format(self.errThr, self.coactThr)
         # ===========================================================
         fig = plt.figure(figsize=(10, 10), dpi=90)
         # plt.subplots_adjust(bottom=0, left=0.1, top=0.9, right=0.9)
@@ -4368,6 +4429,14 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         # root_path = os.path.split(pathGEP)[0]
         # graph_path = os.path.join(root_path, "graphs")
         # graph_path = root_path + "/graphs"
+        df = copy.deepcopy(df_bhvremain)
+        # ==============================================================
+        coact_OK = df['coactpen'] < self.coactThr
+        df = df[coact_OK]
+        # ==============================================================
+        err_OK =  df['varmse'] < self.errThr
+        df = df[err_OK]
+        # ==============================================================
         graph_path = self.GUI_Gr_obj.graph_path
         if not os.path.exists(graph_path):
             os.makedirs(graph_path)
@@ -4376,10 +4445,10 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         GEPdataName = os.path.splitext(strGEPdataName)[0]
 
         
-        nbruns = df_bhvremain["orig_rg"].max()
+        nbruns = df["orig_rg"].max()
         # ==============================================================
-        max_x_bhv = df_bhvremain[df_bhvremain.columns[behav_col[0]]].max()
-        max_y_bhv = df_bhvremain[df_bhvremain.columns[behav_col[1]]].max()
+        max_x_bhv = df[df.columns[behav_col[0]]].max()
+        max_y_bhv = df[df.columns[behav_col[1]]].max()
         max_x = float(int(max_x_bhv*10)+1)/10
         max_y = float(int(max_y_bhv*10)+1)/10
         
@@ -4411,7 +4480,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         print(nbRunOK)
         bhv_names = self.bhv_names
         # #####################################################################
-        do_plot_2D_density_map_metrics(df_bhvremain, behav_col, bhv_names,
+        do_plot_2D_density_map_metrics(df, behav_col, bhv_names,
                                        graph_path, GEPdataName, nbRunOK,
                                        min_x=x_min, max_x=x_max,
                                        min_y=y_min, max_y=y_max,
@@ -4423,20 +4492,28 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         QtWidgets.QApplication.processEvents()
         # ==============================================================
         df_bhvremain = self.GUI_Gr_obj.df_bhvremain
+        df = copy.deepcopy(df_bhvremain)
+        # ==============================================================
+        coact_OK = df['coactpen'] < self.coactThr
+        df = df[coact_OK]
+        # ==============================================================
+        err_OK =  df['varmse'] < self.errThr
+        df = df[err_OK]
+        # ==============================================================
         behav_col = self.GUI_Gr_obj.behav_col
         bhv_names = self.bhv_names
         strGEPdataName = self.GUI_Gr_obj.prevListGEPFiles[0]
         GEPdataName = os.path.splitext(strGEPdataName)[0]
         graph_path = self.GUI_Gr_obj.graph_path
-        bhvOK = df_bhvremain["varmse"]<1
-        df_OK = df_bhvremain[bhvOK]
+        bhvOK = df["varmse"]<1
+        df_OK = df[bhvOK]
         nbRunOK = len(df_OK)
         x_min = 0
         x_max = 120
         y_min = 0
         y_max = 500
         # #####################################################################
-        do_plot_2D_density_map_metrics(df_bhvremain, behav_col, bhv_names,
+        do_plot_2D_density_map_metrics(df, behav_col, bhv_names,
                                        graph_path, GEPdataName, nbRunOK,
                                        min_x=x_min, max_x=x_max,
                                        min_y=y_min, max_y=y_max,
@@ -4453,6 +4530,14 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         # ==============================================================
         behav_col = self.GUI_Gr_obj.behav_col
         df_bhv = copy.deepcopy(self.GUI_Gr_obj.df_bhvremain)
+        # ==============================================================
+        coact_OK = df_bhv['coactpen'] < self.coactThr
+        df_bhv = df_bhv[coact_OK]
+        # ==============================================================
+        err_OK =  df_bhv['varmse'] < self.errThr
+        df_bhv = df_bhv[err_OK]
+        # ==============================================================
+        
         max_x_bhv = df_bhv[df_bhv.columns[behav_col[0]]].max()/self.scale_x
         max_y_bhv = df_bhv[df_bhv.columns[behav_col[1]]].max()/self.scale_y
         max_x = float(int(max_x_bhv*10)+1)/10
@@ -4515,12 +4600,19 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
 
     def plot_densitymaps_contour(self):
-        df_bhv = self.GUI_Gr_obj.df_bhvremain
+        df_bhv = copy.deepcopy(self.GUI_Gr_obj.df_bhvremain)
         behav_col = self.GUI_Gr_obj.behav_col
         # pathGEP = self.GUI_Gr_obj.listGEPFolders[0]
         # root_path = os.path.split(pathGEP)[0]
         # graph_path = os.path.join(root_path, "graphs")
         # graph_path = root_path + "/graphs"
+        # ==============================================================
+        coact_OK = df_bhv['coactpen'] < self.coactThr
+        df_bhv = df_bhv[coact_OK]
+        # ==============================================================
+        err_OK =  df_bhv['varmse'] < self.errThr
+        df_bhv = df_bhv[err_OK]
+        # ==============================================================
         graph_path = self.GUI_Gr_obj.graph_path
         if not os.path.exists(graph_path):
             os.makedirs(graph_path)
@@ -5989,6 +6081,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.endTime = 10
         self.strtMvt = 5
         self.endMvt = 5.8
+        self.errThr = 1.0
+        self.coactThr = 0.01
 
         self.listFold = []
         self.prevListFolders = []
@@ -6238,7 +6332,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             res = self.selctValidBehav(behavs, pairs, start, end,
                                        stangl=0, st_err=1,
                                        minampl=10,
-                                       max_coactpenalty=0.01)
+                                       errThr=self.errThr,
+                                       max_coactpenalty=self.coactThr)
             (df_bhvOK, df_parOK) = res
             # creates a new column with the idx value og the origine df
             origine = np.ones(len(df_bhvOK))*idx
@@ -6246,10 +6341,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             df_parOK.loc[:, 'origine'] = origine
             # =============================================================
             default = True
-            mseThr = 1
+            errThr = self.errThr
             lst_df_bhvremain.append(copy.deepcopy(df_bhvOK))
             lst_df_parremain.append(copy.deepcopy(df_parOK))
-            varmse_OK = lst_df_bhvremain[idx]['varmse'] <= mseThr
+            varmse_OK = lst_df_bhvremain[idx]['varmse'] <= errThr
             lst_df_bhvremain[idx] = lst_df_bhvremain[idx][varmse_OK]
             lst_df_parremain[idx] = lst_df_parremain[idx][varmse_OK]
             if default is True:
@@ -6278,6 +6373,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.explore_subfolders()
         nb_folders = len(self.listGEPFolders)
         self.read_GEPdata_infos()
+        self.setErrThr()
         self.construct_df_par_bhv_remains()
 
 
@@ -6424,10 +6520,53 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.listGEPFolders.sort()
         print(self.listGEPFolders)
         print()
+        
+        pathGEP = self.listGEPFolders[0]
+        fileGEP = os.path.join(pathGEP, "GEPdata00.par")
+        self.datastructure = load_datastructure(fileGEP)
+        datastructure = self.datastructure
+        nbMvtSet = len(datastructure)
+        bestChartName = ""
+        bestparamset = []
+        # print pathGEP,
+        if verbose > 2:
+            print("NbSets:", nbMvtSet, end=" ")
+        if nbMvtSet > 0:
+            mvtSet = nbMvtSet - 1
+            typ = datastructure[mvtSet][0]
+            start = datastructure[mvtSet][1]
+            end = datastructure[mvtSet][2]
+            # packetsize = datastructure[mvtSet][3]
+            if verbose > 2:
+                print("{} start={} end={}".format(typ, start, end), end=" ")
+            conditions = datastructure[mvtSet][4]
+            if len(conditions) > 7:
+                self.errThr = float(conditions[7][0])
+                self.coactThr = float(conditions[7][1])
+            else:
+                self.errThr = 1.0
+                self.coactThr =0.01
         # if len(self.listGEPFolders) == 0:
         #    print("######### No data to process #########")
         #    return
 
+
+    def setErrThr(self):
+        list_entry_name = ["errThr", "coactThr"]
+        list_entry_value = [self.errThr, self.coactThr]
+        #list_value_max = [0.2, 5, 5]
+        window_name = "Enter errThr and coactThr"
+        dicValues = {}
+        for idx, nam in enumerate(list_entry_name):
+            dicValues[nam] = list_entry_value[idx]
+        selected = list(dicValues.keys())
+        typ, text = "typ", window_name
+        dicValues = set_values_in_list(dicValues, selected, typ, text)
+        
+        # QtWidgets.QApplication.processEvents()
+        # ==============================================================
+        self.errThr = float(dicValues["errThr"])
+        self.coactThr = float(dicValues["coactThr"])
 
 
     def construct_df_par_bhv_remains(self):
@@ -7081,7 +7220,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
     def selctValidBehav(self, behavs, pairs, start, end,
                         stangl=0, st_err=1,
-                        minampl=10, max_coactpenalty=0.01):
+                        minampl=10, errThr=1.0, max_coactpenalty=0.01):
         if len(behavs) > 1:
             df_behav = pd.DataFrame(behavs[start:end], columns=self.bhv_names,
                                     index=np.arange(len(behavs[start:end])))
@@ -7306,17 +7445,19 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         size = figure.get_size_inches()*figure.dpi  # size in pixels
 
         if factor is None:
+            newdf = glob_df[[var1, var2]].copy().dropna()
             self.palette = sns.color_palette("Set1")
             palette = self.palette
-            ax.plot(glob_df.loc[:, var1].values,
-                    glob_df.loc[:, var2].values,
+            ax.plot(newdf.loc[:, var1].values,
+                    newdf.loc[:, var2].values,
                     color=palette[0],
                     marker='o', markersize=5, linewidth=0)
             ax.set_xlabel(var1, labelpad=18, fontsize=10)
             ax.set_ylabel(var2, labelpad=18, fontsize=10)
 
         else:
-            [step_pal_misRem, codeCoul_df] = buildStpDiscretCol(df_glob,
+            newdf = glob_df[[var1, var2, factor]].copy().dropna()
+            [step_pal_misRem, codeCoul_df] = buildStpDiscretCol(newdf,
                                                                 factor)
             seq_factor = "seq_{}".format(factor)
             seq_factor_col = codeCoul_df[seq_factor]
@@ -7324,11 +7465,11 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
             classes.sort(reverse=False)
             color_map = dict(zip(classes, step_pal_misRem))
             colors = seq_factor_col.apply(lambda group: color_map[group])
-            # =====  creation of a new 'seq_factor' column in new glob_df =====
-            glob_df.loc[:, seq_factor] = codeCoul_df.loc[:, seq_factor]
+            # =====  creation of a new 'seq_factor' column in newdf =====
+            newdf.loc[:, seq_factor] = codeCoul_df.loc[:, seq_factor]
 
-            ax.scatter(np.array(glob_df.loc[:, var1]),
-                       np.array(glob_df.loc[:, var2]),
+            ax.scatter(np.array(newdf.loc[:, var1]),
+                       np.array(newdf.loc[:, var2]),
                        alpha=0.70, s=10, c=colors, linewidth=0)
             ax.set_xlabel(var1, labelpad=18, fontsize=10)
             ax.set_ylabel(var2, labelpad=18, fontsize=10)
@@ -7375,8 +7516,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 plt.setp(plt.gca().get_legend().get_texts(), fontsize='6')
             """
         if calc_regression:
-            x = np.array(glob_df.loc[:, var1])
-            y = np.array(glob_df.loc[:, var2])
+            x = np.array(newdf.loc[:, var1])
+            y = np.array(newdf.loc[:, var2])
             # suppression of all "NaN" in x,y
             finiteIdx = np.isfinite(x) & np.isfinite(y)
             x_clean = x[finiteIdx]
