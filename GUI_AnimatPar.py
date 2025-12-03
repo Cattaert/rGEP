@@ -21,8 +21,15 @@ Modified March 02, 2023 (D. Cattaert):
 Modified July 19, 2024 (D. Cattaert):
     When saving the new AnimatLab parameters, the SynAmp of disabled synapses
     is set to 0 and asim and aproj are saved.
+Modified November 25, 2025 (D.Cattaert):
+    Version with free collecInterval. In browse_folder method, The lines that
+    changed automaticall the time_step to 0.01 have been commented.
 """
-
+# Form implementation generated from reading ui file 'design7.ui'
+#
+# Created by: PyQt5 UI code generator 5.6
+#
+# WARNING! All changes made in this file will be lost!
 
 # import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -36,6 +43,7 @@ import pickle
 
 from DialogChoose_in_List import ChooseInList
 
+# import class_animatLabModel_split as AnimatLabModel
 import class_animatLabModel as AnimatLabModel
 import class_projectManager as ProjectManager
 import class_animatLabSimulationRunner as AnimatLabSimRunner
@@ -1429,9 +1437,10 @@ class ReadAsimAform(Ui_MainWindow):
                 for aformFile in chartNames:
                     chartPathName = dirname + "/" + aformFile
                     collIntervalAform = readColIntervalFromAform(chartPathName)
+                    """
                     if collIntervalAform != '0.01':
                         changeCollIntervalAform(chartPathName)
-
+                    """
             asimNames = []
             for simname in os.listdir(dirname):
                 if simname.endswith("asim"):
@@ -1441,9 +1450,10 @@ class ReadAsimAform(Ui_MainWindow):
                 for asimFile in asimNames:
                     asimPathName = dirname + "/" + asimFile
                     collIntervalAsim = readColIntervalFromAsim(asimPathName)
+                    """
                     if collIntervalAsim != '0.01':
                         changeCollIntervalAsim(asimPathName)
-
+                    """
             aprojNames = []
             for projname in os.listdir(dirname):
                 if projname.endswith("aproj"):

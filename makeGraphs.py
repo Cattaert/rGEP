@@ -356,6 +356,10 @@ modified September 04, 2025 (D. Cattaert):
     titles
     Suppression of nan elements in selected dataframe for single plot (eiher
     with a color factor of not)
+Modified October 22, 2025 (D. Cattaert):
+    Method "create_df_for_bhv_neur_par()" modified self.fname (name of of the 
+    self.chart_glob_df), that includes now the length of df_chart.
+    Method "plot_bhvmap_nbBhvOK" reduces the number of points of the graph plot
 """
 import os
 from os import listdir
@@ -4241,6 +4245,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
         # self.GUI_Gr_obj.make_bhvpardf_bhvparwins()
         df_bhvremain = self.GUI_Gr_obj.df_bhvremain
+        selectedROI = self.GUI_Gr_obj.mafen.selectedROI
+       
         # pathGEP = self.GUI_Gr_obj.listGEPFolders[0]
         # root_path = os.path.split(pathGEP)[0]
         # graph_path = os.path.join(root_path, "graphs")
@@ -4313,15 +4319,87 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         baseName = name
         titre = get_titre(path, baseName) + "  errThr: {}  coactThr: {}"
         titre = titre.format(self.errThr, self.coactThr)
-        # ===========================================================
-        fig = plt.figure(figsize=(10, 10), dpi=90)
-        # plt.subplots_adjust(bottom=0, left=0.1, top=0.9, right=0.9)
-        grid = plt.GridSpec(1, 1, wspace=0.4, hspace=0.3)
-        # ax1 = fig.add_subplot(grid[0, 0])
+
+
         if ordTyp == "duration":
             bhv_col = [3, 13]
         else:
             bhv_col = [3, 6]
+
+            
+        # ===========================================================
+        # Reduction of the number of points
+        # ===========================================================
+        x = df[df.columns[bhv_col[0]]].to_numpy()
+        y = df[df.columns[bhv_col[1]]].to_numpy()
+        points = np.column_stack((x,y))
+
+        nb_cases = 200
+        resolution_x = (x.max() - x.min())/ nb_cases
+        resolution_y = (y.max() - y.min())/ nb_cases
+        resolution = np.array([resolution_x, resolution_y])
+
+        # approximation of each point (several points have the samee coordinates)
+        quantized = np.round(points / resolution) * resolution
+
+        # keep only one occurence for each point (doublon suppress)
+        _, unique_indices = np.unique(quantized, axis=0, return_index=True)
+        df2 = df.iloc[unique_indices].copy()
+        a=len(df)
+        b=len(df2)
+        print(f"reduction from {a} to {b} points")    
+            
+        behavs_cues = df2[df2.columns[bhv_col]]
+        rel_behavs_cues = behavs_cues/[self.scale_x, self.scale_y]
+        nameX = rel_behavs_cues.columns[0]
+        nameY = rel_behavs_cues.columns[1]
+        valX = rel_behavs_cues[nameX]
+        valY = rel_behavs_cues[nameY]
+        if self.behav_col[1] == 8:      # if ordonate is duration...
+            labelnameX = nameX + "(x 0.01)"
+            labelnameY = nameY
+        elif self.behav_col[1] == 6:
+            labelnameX = nameX + "(x 0.01)"
+            labelnameY = nameY + "(x 0.01)"
+
+        # ===========================================================
+        fig = plt.figure(figsize=(10, 10), dpi=90)
+        # plt.subplots_adjust(bottom=0, left=0.1, top=0.9, right=0.9)
+        grid = plt.GridSpec(1, 1, wspace=0.4, hspace=0.3)
+
+        ax1 = fig.add_subplot(grid[0, 0])
+        
+        # selectedROI = []
+        if selectedROI == []:
+            # ---------------------------------------------------
+            ax1.scatter(valX, valY, marker='o', s=4, c="r")
+            # ---------------------------------------------------
+        else:
+            for idxROI, listdata in enumerate(selectedROI):
+                dflist_x = rel_behavs_cues[nameX][listdata]
+                dflist_y = rel_behavs_cues[nameY][listdata]
+                color = listcolors[idxROI]
+                # ---------------------------------------------------
+                ax1.scatter(dflist_x, dflist_y, marker='o', s=4, c=color)
+                # ---------------------------------------------------
+        ax1.set_xlabel(labelnameX, fontsize=11)
+        ax1.set_ylabel(labelnameY, fontsize=11)
+        plt.xticks(fontsize=10)
+        plt.yticks(fontsize=10)
+        ax1.set_axisbelow(True)
+        ax1.set_xlim(x_min, x_max)
+        ax1.set_ylim(y_min, y_max)
+        ax1.grid(linestyle='-', linewidth='0.5', color='green')
+        plt.suptitle(titre, fontsize=12, y=0.95)
+        plt.savefig(os.path.join(graph_path, name + "_reduced" + '.pdf'))
+        plt.savefig(os.path.join(graph_path, name + "_reduced" + '.eps'))
+        plt.show()
+        
+
+        
+        # ===========================================================
+        # Plot all points
+        # ===========================================================
         behavs_cues = df[df.columns[bhv_col]]
         rel_behavs_cues = behavs_cues/[self.scale_x, self.scale_y]
         nameX = rel_behavs_cues.columns[0]
@@ -4336,8 +4414,14 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
             labelnameX = nameX + "(x 0.01)"
             labelnameY = nameY + "(x 0.01)"
 
+        # ===========================================================
+        fig = plt.figure(figsize=(10, 10), dpi=90)
+        # plt.subplots_adjust(bottom=0, left=0.1, top=0.9, right=0.9)
+        grid = plt.GridSpec(1, 1, wspace=0.4, hspace=0.3)
+
         ax1 = fig.add_subplot(grid[0, 0])
-        selectedROI = self.GUI_Gr_obj.mafen.selectedROI
+        
+        # selectedROI = []
         if selectedROI == []:
             # ---------------------------------------------------
             ax1.scatter(valX, valY, marker='o', s=4, c="r")
@@ -4362,6 +4446,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         plt.savefig(os.path.join(graph_path, name + '.pdf'))
         plt.savefig(os.path.join(graph_path, name + '.eps'))
         plt.show()
+        
+        
         # self.mafen.save_map_behav(df, pathGEP, name)
 
     def plot_abaque_duration(self):
@@ -8304,7 +8390,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                 for neur in list_neur:
                     list_rg_pk, list_rg_min = get_peaks_and_troughs(df_n, neur,
                                                                     chartName)
-                    
+                    # if neur == "1ExtAlpha":
+                    #    print(list_rgk)
                     for idx, calc in enumerate(list_calc):
                         if list_calc[idx] == "_startval":
                             list_val = elem[neur + list_calc[idx]]
@@ -8384,9 +8471,11 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                    self.df_chart_par], axis=1)
         chart_glob_df["rg_in_whole"] = df_par_index
         self.chart_glob_df = chart_glob_df
-        self.chart_glob_df.to_csv(save_path + "/df_chart_bhv_neur_param.csv")
+        length = len(self.chart_glob_df)
+        df_chart_name = "df_chart_bhv_neur_param_{}BhvOK.csv".format(length)
+        self.chart_glob_df.to_csv(save_path + "/" + df_chart_name)
         
-        self.fname = save_path + "/df_chart_bhv_neur_param.csv"
+        self.fname = save_path +  "/" + df_chart_name
         self.read_csv_for_df_bhv_neur_par_from_file()
         """
         self.chart_glob_df = pd.read_csv(
@@ -9033,18 +9122,24 @@ def get_peaks_and_troughs(df_n, neur, chartName):
     plt.show()
 
     if (list_rg_min[0], list_rg_pk[0]) == (450, 450):
-         valid_lst_rg_pk, valid_lst_rg_min = [],[]
-         
-    elif list_rg_min[0] < list_rg_pk[0]: # probably started from a plateau
-        x = 0
-        while abs(df_n.iloc[x][neur] - df_n.iloc[0][neur]) < 0.1:
-            x += 1
-        firstpeak_idx = x
-        start_val = df_n.iloc[0][neur]
-        start_time = df_n.index[0]
-        n_list_rg_pk = [firstpeak_idx]
-        for pk_idx in list_rg_pk:
-            n_list_rg_pk.append(pk_idx)
+        valid_lst_rg_pk, valid_lst_rg_min = [],[]
+    
+        """     
+        elif list_rg_min[0] < list_rg_pk[0]: # probably started from a plateau
+            x = 0
+            while abs(df_n.iloc[x][neur] - df_n.iloc[0][neur]) < 0.1:
+                print(x, df_n.iloc[x][neur],
+                      abs(df_n.iloc[x][neur] - df_n.iloc[0][neur]))
+                x += 1
+            print(x, df_n.iloc[x][neur],
+                  abs(df_n.iloc[x][neur] - df_n.iloc[0][neur]))
+            firstpeak_idx = x
+            start_val = df_n.iloc[0][neur]
+            start_time = df_n.index[0]
+            n_list_rg_pk = [firstpeak_idx]
+            for pk_idx in list_rg_pk:
+                n_list_rg_pk.append(pk_idx)
+        """
     else:
         n_list_rg_pk = list_rg_pk
 

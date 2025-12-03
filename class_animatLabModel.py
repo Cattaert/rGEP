@@ -15,6 +15,8 @@ Translated in Python 3.8 Jan 2023 (D. Cattaert)
 modified February 01, 2024 (D. Cattaert):
     Bug fixed in lookupAppend4() method for synapsesFR to make it compatible
     with python3.8.
+Modified December 3, 2025 (D. Cattaert):
+    CLass AnimatModel modified to work with aproj using offpage connectors
 """
 
 # Import dependencies
@@ -491,16 +493,25 @@ class AnimatLabModel(object):
         organisms = list(aprojroot.find(path))
         for organism in organisms:
             ns = organism.find("NervousSystem/Node")
+            print("ns", ns)
             if ns is None:
                 print("No Neuron")
             elif ns is not None:
                 nodes = ns.find("Nodes")
-                # print nodes, list(nodes)
+                print(nodes)
                 for el in list(nodes):
+                    # print(el, end=' ')
                     cn = el.find("ClassName").text
+                    print(cn,  end=" ")
                     if cn.split('.')[0] == "IntegrateFireGUI":
-                        # print el.find("Text").text,
+                        nam = el.find("Text").text
+                        print(nam)
                         aprojlookupAppendNode(el, "Neurons")
+                    elif cn.split('.')[0] == "AnimatGUI":
+                        nam = el.find("Text").text
+                        print(nam)
+                        # if nam != "Disabled":
+                        aprojlookupAppendNode(el, "Neurons")                      
 
         # print
 
@@ -551,10 +562,31 @@ class AnimatLabModel(object):
                 print("No Neuron")
             elif ns is not None:
                 links = ns.find("Links")
+                """
                 for el in list(links):
                     cn = el.find("ClassName").text
+                    print(cn)
                     if cn.split('.')[0] == "IntegrateFireGUI":
                         aprojlookupAppend2(el, "Connexions")
+                 """       
+                for el in list(links):
+                    # print(el, end=' ')
+                    cn = el.find("ClassName").text
+                    print(cn,  end=" ")
+                    if cn.split('.')[0] == "IntegrateFireGUI":
+                        nam = el.find("Text").text
+                        print(nam)
+                        if nam is not None:
+                            aprojlookupAppend2(el, "Connexions")
+                    elif cn.split('.')[0] == "AnimatGUI":
+                        nam = el.find("Text").text
+                        print(nam)
+                        # if nam != "Disabled":
+                        if nam is not None:
+                            aprojlookupAppend2(el, "Connexions")            
+                            
+                        
+                        
         # print
 
         # print "NeuronsFR"

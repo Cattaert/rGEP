@@ -502,6 +502,19 @@ class mesh_change(QtWidgets.QWidget):
         self.oldMaleSkeleton_path = maleSkeleton_path
         self.newMaleSkeleton_path = EditMeshPath(self.oldMaleSkeleton_path)
         self.meshPathTxt = convertPath2Text(self.newMaleSkeleton_path)
+        
+    def modify_projec_path(self, aprojname):
+        newProjectPath = convertPath2Text(os.path.split(aprojname)[0])
+        newProjectPath += "\\"
+        filetree = elementTree.parse(aprojname)
+        root = filetree.getroot()
+        projectPath = "Simulation/ProjectPath"
+        pp = root.find(projectPath)
+        print("old projetPath:", pp.text)
+        print("new projectPath:", newProjectPath)      
+        root.find(projectPath).text = newProjectPath
+        filetree.write(aprojname)
+        
 
     def modify_aproj_files(self, saveOriginal=0):
         if self.newMeshPath == "":
@@ -529,6 +542,10 @@ class mesh_change(QtWidgets.QWidget):
                     print('saving file: {}'.format(destfile))
                 print('Actualizing file: {}'.format(aprojFilePath))
                 aprojtree.write(aprojFilePath)
+                if "trial-" not in aprojname:
+                    # if "_ID" not in aprojname:
+                    print(aprojname)
+                    self.modify_projec_path(aprojname)
 
     def modify_asim_files(self, saveOriginal=0):
         if self.newMeshPath == "":

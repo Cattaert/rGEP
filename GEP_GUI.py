@@ -105,6 +105,9 @@ modified September 04, 2025 (D. Cattaert):
     win.errThr and win.coactThr can be changed in the GUI.
     These two values are incorporated in datastructure (conditons' last list')
     and saved in GEPdata00.par at each extend and fill.
+modified November 25, 2025 (D. Cattaert):
+    Version with free timeStep. In initAnimatLab collecinterval modifications
+    have been commented.
 """
 
 import pyqtgraph as pg
@@ -4952,7 +4955,8 @@ def initAnimatLab(animatsimdir, animatLabV2ProgDir):
         projMan = optSet.projMan
         #
         collectInterval = optSet.chart[0].find("CollectInterval").text
-        if collectInterval != '0.01':
+        """
+        if collectInterval != '0.01':      
             print("==========================================================")
             print("        !!! PROBLEM with collectInterval !!!")
             print("It should be '0.01 and it is ", collectInterval)
@@ -4965,6 +4969,8 @@ def initAnimatLab(animatsimdir, animatLabV2ProgDir):
             sys.exixt()
         else:
             print("collectInterval:", collectInterval)
+        """
+        print("collectInterval:", collectInterval)
         # listparNameOpt = optSet.paramVSCDName
         setPlaybackControlMode(model, mode=0)   # 0: fastest Possible;
         #                                       # 1: match physics

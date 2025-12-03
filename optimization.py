@@ -182,6 +182,14 @@ modified September 04, 2025 (D. Cattaert):
     win.errThr and win.coactThr can be changed in the GUI.
     These two values are incorporated in datastructure (conditons' last list')
     and saved in GEPdata00.par at each extend and fill.
+Modified November 25, 2025 (D. Cattaert):
+    Version with free timeStep. In test_quality procedure the number of shifts
+    has been recalculated based on the optSet.collectinterval method, using the
+    formula: Max_lag = max_lag = int(1/float(optSet.collectInterval))
+    DUring the multiple shifts process, '/' are printed with a new formula:
+        if lag % int(max_lag/50) == 0:
+            if affich:
+                print("/", end='')
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3016,7 +3024,7 @@ def testquality(optSet, tab, template, msetyp,affich=1):
     # other_constraints["max_endMN_pot"] = -0.061
     other_constraints = optSet.other_constraints
     
-    max_lag = 100
+    max_lag = int(1/float(optSet.collectInterval))      # up to 1 s of lag
     # mvt = tab[:][optSet.mvtcolumn]
     mvt = extractCol(tab, optSet.mvtcolumn)
     # timestart = tab[0][1]
@@ -3042,7 +3050,7 @@ def testquality(optSet, tab, template, msetyp,affich=1):
     # print(mse, end=' ')
     msetab.append(mse)
     prevmse = mse
-    slide = ""
+    # slide = ""
     # In order to compute the varmse we compare the produced movement to
     # different frame defined by lag.
     # while (dmse <= 0) and (lag < 20):
@@ -3063,8 +3071,10 @@ def testquality(optSet, tab, template, msetyp,affich=1):
         prevmse = mse
         # One "/" we'll be printed for each step in this loop
         # print(dmse)
-        if lag % 2 == 0:
-            slide += "/"
+        if lag % int(max_lag/50) == 0:
+            if affich:
+                print("/", end='')
+            # slide += "/"
     optSet.templateLag = lag * float(optSet.collectInterval)
     mse = min(msetab)
 
@@ -3124,7 +3134,7 @@ def testquality(optSet, tab, template, msetyp,affich=1):
                             line_deb_calc_coact2, optSet.lineEnd,
                             optSet.coactivityFactor*optSet.xCoactPenality2)
     if affich:
-        print(slide, end=' ')
+        # print(slide, end=' ')
         print("lag:", lag * float(optSet.collectInterval), " s")
         if msetyp != "":
             print(msetyp, end=' ')
@@ -4525,11 +4535,11 @@ def set_limits(x, rand, span, inf, sup, optSet, stim_liminf=False,
     randstim = rand[:, :stpar_nb]
     randsyn = rand[:, stpar_nb:]
 
-    @np.vectorize
+    @np.vectorize(otypes=[float])
     def limitinf(xsubarr, randsubarr, span):
         return xsubarr if xsubarr >= inf else (randsubarr*span/1000)
 
-    @np.vectorize
+    @np.vectorize(otypes=[float])
     def limitsup(xsubarr, randsubarr, span):
         return xsubarr if xsubarr <= sup else (1-randsubarr*span/1000)
 
