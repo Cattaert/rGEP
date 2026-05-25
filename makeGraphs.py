@@ -360,6 +360,14 @@ Modified October 22, 2025 (D. Cattaert):
     Method "create_df_for_bhv_neur_par()" modified self.fname (name of of the 
     self.chart_glob_df), that includes now the length of df_chart.
     Method "plot_bhvmap_nbBhvOK" reduces the number of points of the graph plot
+Modified May 24 2026 (D. Cattaert):
+    New predecure ("Analyse perturbation effects on par+bhv df) allows to add
+    perturbation to the arm during movement. A new stimulus is added in the
+    FinalModel files (.asim and .aproj) of the original directory.
+    New subdirectory of "graph" directory is created to store the rusults of
+    running each perturbed model.The perturbation parameters are givent by the
+    user. It is also possible to run a limited ârt of the original behavior
+    domain.Once finished the original FinalModel files are restored.
 """
 import os
 from os import listdir
@@ -438,6 +446,9 @@ from FoldersArm import FolderOrg
 import class_animatLabModel as AnimatLabModel
 import class_projectManager as ProjectManager
 from class_animatLabSimulationRunner import AnimatLabSimulationRunner as SimRun
+import class_animatLabSimulationRunner as AnimatLabSimRunner
+import xml.etree.ElementTree as elementTree
+import uuid
 
 """
 from matplotlib.backends.qt_compat import is_pyqt5
@@ -899,6 +910,231 @@ def get_titre(path, baseName):
     else:
         titr = titre
     return titr
+
+
+def includePerturbationInAsim(pertStart, pertDur, pertForce,
+                              asimFileName, new_run_dir):
+    """
+    """
+    def indent(elem, level=0):
+        i = "\n" + level * "  "
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + "  "
+            for child in elem:
+                indent(child, level + 1)
+                if not child.tail or not child.tail.strip():
+                    child.tail = i
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = i
+    
+    pertStartTxt = '%s' % pertStart
+    pertEnd = pertStart + pertDur
+    pertEndTxt = '%s' % pertEnd
+    pertForceTxt = '%s' % pertForce
+    
+    lookupType = []
+    lookupID = []
+    lookupName = []
+    lookupElement = []
+
+    def lookupAppend(el, elType):
+        lookupType.append(elType)
+        lookupID.append(el.find("ID").text)
+        lookupName.append(el.find("Name").text)
+        lookupElement.append(el)
+    
+    asimFile = os.path.join(new_run_dir, asimFileName)
+    tree = elementTree.parse(asimFile)
+    root = tree.getroot()
+    path = "Environment/Organisms"
+    
+    for el in list(root.find("ExternalStimuli")):
+        if el.find("Type").text == "MotorPosition":
+            lookupAppend(el, "MotorPosition")
+
+    for el in list(root.find("ExternalStimuli")):
+        if el.find("Type").text == "MotorVelocity":
+            lookupAppend(el, "MotorVelocity")
+
+    for el in list(root.find("ExternalStimuli")):
+        if el.find("Type").text == "Current":
+            lookupAppend(el, "ExternalStimuli")
+            
+    for el in list(root.find("ExternalStimuli")):
+        if el.find("Type").text == "ForceInput":
+            lookupAppend(el, "ForceInput")
+
+    external = root.find("ExternalStimuli")
+    stim = elementTree.Element("Stimulus")
+    
+    def add(tag, text):
+        e = elementTree.SubElement(stim, tag)
+        e.text = text
+    
+    if "perturbation" not in lookupName:
+        add("ID", str(uuid.uuid4()))
+        add("Name", "perturbation")
+        add("AlwaysActive", "False")
+        add("Enabled", "True")
+        add("ModuleName", "")
+        add("Type", "ForceInput")
+        add("StructureID", "e6b0c0e2-b87c-4391-8637-55925b1b6ca4")
+        add("BodyID", "49172659-54fc-42dd-8d4c-cb5b5e921576")
+        add("StartTime", pertStartTxt)
+        add("EndTime", pertEndTxt)
+        
+        rel = elementTree.SubElement(stim, "RelativePosition")
+        rel.set("x", "0")
+        rel.set("y", "0")
+        rel.set("z", "0")
+        
+        add("ForceX", pertForceTxt)
+        add("ForceY", "0")
+        add("ForceZ", "0")
+        for tag in ["TorqueX", "TorqueY", "TorqueZ"]:
+            add(tag, "0")
+        
+        children = list(external)
+        insert_at = next(
+            (i for i, el in enumerate(children)
+             if el.find("Type") is not None and el.find("Type").text == "MotorVelocity"),
+            len(children)
+        )
+        
+        external.insert(insert_at, stim)
+        
+        indent(root)
+        tree.write(asimFile, encoding="utf-8", xml_declaration=True)
+
+    # ================ Modification of the perturbation parameters ============
+    else:
+        for stim in external.findall("Stimulus"):
+            t = stim.find("Type")
+            if t is not None and t.text == "ForceInput":
+                stim.find("Name").text = "perturbation"
+                stim.find("StartTime").text = pertStartTxt
+                stim.find("EndTime").text = pertEndTxt
+                stim.find("ForceX").text = pertForceTxt
+                stim.find("ForceY").text = "0"
+                stim.find("ForceZ").text = "0"
+                stim.find("TorqueX").text = "0"
+                stim.find("TorqueY").text = "0"
+                stim.find("TorqueZ").text = "0"
+                break
+        tree.write(asimFile, encoding="utf-8", xml_declaration=True)
+
+
+
+
+def includePerturbationinAproj(pertStart, pertDur, pertForce,
+                               aprojFileName, new_run_dir):
+
+    def indent(elem, level=0):
+        i = "\n" + level * "  "
+        if len(elem):
+            if not elem.text or not elem.text.strip():
+                elem.text = i + "  "
+            for child in elem:
+                indent(child, level + 1)
+                if not child.tail or not child.tail.strip():
+                    child.tail = i
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = i
+
+    pertStartTxt = '%s' % pertStart
+    pertEnd = pertStart + pertDur
+    pertEndTxt = '%s' % pertEnd
+    pertForceTxt = '%s' % pertForce
+    
+    aprojlookupType = []
+    aprojlookupID = []
+    aprojlookupName = []
+    aprojlookupElement = []
+
+    def aprojlookupAppend(el, elType):
+        aprojlookupType.append(elType)
+        aprojlookupID.append(el.find("ID").text)
+        aprojlookupName.append(el.find("Name").text)
+        aprojlookupElement.append(el)
+
+
+    aprojFile = os.path.join(new_run_dir, aprojFileName)
+    aprojtree = elementTree.parse(aprojFile)
+    aprojroot = aprojtree.getroot()
+
+    print("\nREADING .aproj elements...")
+    # print "Stimuli"
+    path = "Simulation/Stimuli"
+    for el in list(aprojroot.find(path)):
+        # print el.find("Name").text,
+        aprojlookupAppend(el, "Stimulus")
+
+    stimuli = aprojroot.find("Simulation/Stimuli")
+    stim = elementTree.Element("Stimulus")
+    
+    def add_text(tag, text):
+        e = elementTree.SubElement(stim, tag)
+        e.text = text
+        return e
+    
+    def add_attrib(tag, attrs):
+        return elementTree.SubElement(stim, tag, attrs)
+
+
+    if "perturbation" not in aprojlookupName:
+        add_text("AssemblyFile", "AnimatGUI.dll")
+        add_text("ClassName", "AnimatGUI.DataObjects.ExternalStimuli.Force")
+        add_text("Name", "perturbation")
+        add_text("ID", str(uuid.uuid4()))
+        
+        add_attrib("StartTime", {"Value": pertStartTxt, "Scale": "None", "Actual": pertStartTxt})
+        add_attrib("EndTime", {"Value": pertEndTxt, "Scale": "None", "Actual": pertEndTxt})
+        add_attrib("StepInterval", {"Value": "0", "Scale": "milli", "Actual": "0"})
+        
+        add_text("AlwaysActive", "False")
+        add_text("Enabled", "True")
+        add_text("ValueType", "Constant")
+        add_text("Equation", "0")
+        add_text("StructureID", "e6b0c0e2-b87c-4391-8637-55925b1b6ca4")
+        add_text("PartID", "49172659-54fc-42dd-8d4c-cb5b5e921576")
+        
+        add_attrib("PositionX", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("PositionY", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("PositionZ", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("ForceX", {"Value": pertForceTxt, "Scale": "None", "Actual": pertForceTxt})
+        add_attrib("ForceY", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("ForceZ", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("TorqueX", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("TorqueY", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("TorqueZ", {"Value": "0", "Scale": "None", "Actual": "0"})
+        
+        children = list(stimuli)
+        insert_at = next(
+           (i for i, el in enumerate(children)
+            if el.find("ClassName") is not None and el.find("ClassName").text == "AnimatGUI.DataObjects.ExternalStimuli.MotorVelocity"),
+            len(children)
+        )
+        stimuli.insert(insert_at, stim)
+        indent(aprojroot)
+        aprojtree.write(aprojFile, encoding="utf-8", xml_declaration=True)
+    else:
+        for stim in stimuli.findall("Stimulus"):
+            cls = stim.find("ClassName")
+            if cls is not None and cls.text == "AnimatGUI.DataObjects.ExternalStimuli.Force":
+                stim.find("Name").text = "perturbation"
+                stim.find("StartTime").set("Value", pertStartTxt)
+                stim.find("StartTime").set("Actual", pertStartTxt)
+                stim.find("EndTime").set("Value", pertEndTxt)
+                stim.find("EndTime").set("Actual", pertEndTxt)
+                stim.find("ForceX").set("Value", pertForceTxt)
+                stim.find("ForceX").set("Actual", pertForceTxt)
+                stim.find("ForceY").set("Value", "0")
+                stim.find("ForceY").set("Actual", "0")
+                stim.find("ForceZ").set("Value", "0")
+                stim.find("ForceZ").set("Actual", "0")
+                break
+        aprojtree.write(aprojFile, encoding="utf-8", xml_declaration=True)
 
 
 def plot_2D_graph_from_array(x, graph_path,  baseName,
@@ -5206,6 +5442,509 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
 
 
+class Perturbation_Setting0(QtWidgets.QDialog):
+    def __init__(self, df, GUI_Gr_obj, parent=None):
+        super(Perturbation_Setting0, self).__init__(parent)
+        self.df = df
+        self.GUI_Gr_obj = GUI_Gr_obj
+        self.resize(300, 120)
+        self.define_perturb_btn = QtWidgets.QPushButton(
+            'Define perturbation parameters')
+        self.apply_to_FinalModel_btn = QtWidgets.QPushButton(
+            'Apply perturbation to FinalModel Files')
+        self.set_bhv_limits_btn = QtWidgets.QPushButton(
+            'set limits of bhvdomain receiving perturbations')
+        self.run_pert_btn = QtWidgets.QPushButton(
+            'run perturbations on selected bhvs')
+        self.btn_quit = QtWidgets.QPushButton('QUIT')
+
+        self.define_perturb_btn.clicked.connect(self.define_perturb)
+        self.apply_to_FinalModel_btn.clicked.connect(self.apply_to_FinalModel)
+        self.set_bhv_limits_btn.clicked.connect(self.set_bhv_limits)
+        self.run_pert_btn.clicked.connect(self.chartgraph_selected_bhv)
+        self.btn_quit.clicked.connect(self.closeIt)
+
+        self.apply_to_FinalModel_btn.setEnabled(False)
+        self.set_bhv_limits_btn.setEnabled(False)
+        self.run_pert_btn.setEnabled(False)
+        
+        self.listw = QtWidgets.QListWidget()
+        layout = QtWidgets.QGridLayout()
+        self.setLayout(layout)
+       
+        layout.addWidget(self.define_perturb_btn, 1, 0)     # 1st row-left
+        layout.addWidget(self.apply_to_FinalModel_btn, 2, 0)  # 2nd row-left
+        layout.addWidget(self.set_bhv_limits_btn, 3, 0)     # 3rdh row-left
+        layout.addWidget(self.run_pert_btn, 4, 0)           #¸4th row-left
+        layout.addWidget(self.btn_quit, 5, 0)      # goes in bottom(3)-left
+        self.to_init()
+        
+    def to_init(self):
+        # self=MyWin.pert_setting
+        self.rootdir = ""
+        self.pertStart = 5.25   # s
+        self.pertDur = 0.050    # s
+        self.pertForce = 100    # g
+        """
+        self.scale_x = self.GUI_Gr_obj.scale_x
+        self.scale_y = self.GUI_Gr_obj.scale_y
+        self.behav_col = self.GUI_Gr_obj.behav_col
+        self.bhv_names = self.GUI_Gr_obj.bhv_names
+        """
+        
+    def screen_loc(self, xshift=0, yshift=0):
+        ag = QtWidgets.QDesktopWidget().availableGeometry()
+        # sg = QtWidgets.QDesktopWidget().screenGeometry()
+        widget = self.geometry()
+        x = ag.width() - widget.width() - xshift
+        y = ag.height() - widget.height() - yshift
+        self.move(x, y)
+        
+    def define_perturb(self):
+        list_entry_name = ["perturb_onset", "perturb_duration", 'pert_strength']
+        list_entry_value = [self.pertStart, self.pertDur, self.pertForce]
+        #list_value_max = [0.2, 5, 5]
+        window_name = "Enter start and duration and intensity of pertubation"
+        dicValues = {}
+        for idx, nam in enumerate(list_entry_name):
+            dicValues[nam] = list_entry_value[idx]
+        selected = list(dicValues.keys())
+        typ, text = "\ttyp\t\t value", window_name
+        dicValues = set_values_in_list(dicValues, selected, typ, text)
+        self.pertStart = float(dicValues["perturb_onset"])
+        self.pertDur = float(dicValues["perturb_duration"])
+        self.pertForce = int(dicValues["pert_strength"])
+        """
+        self.runpertName = "runpertSt%3.2fDur%3.2fF%3d-" % (self.pertStart,
+                                                           self.pertDur,
+                                                           self.pertForce)
+        """
+        #self.runpertName = "pert%3d-" % (self.pertForce)
+        self.runpertName = f"pert{self.pertForce:0>3}-"
+        self.apply_to_FinalModel_btn.setEnabled(True)
+
+
+    def apply_to_FinalModel(self):
+        """
+        self=MyWin.pert_settings
+        """
+        graph_path = self.GUI_Gr_obj.graph_path
+        graph_path = graph_path.replace("\\", "/")
+        listdir = os.listdir(graph_path)
+        lst_subdir = [sd for sd in listdir
+                      if os.path.isdir(graph_path + "/" + sd)]
+        ix = 0
+        for sdir in lst_subdir:
+            if sdir[:8] == self.runpertName:
+                ix += 1
+        newrundirname = self.runpertName + '{0:d}'.format(ix)
+        self.new_run_dir = graph_path + "/" + newrundirname
+        # ======== create new_run_dir folder with incremental name ===========
+        animatsimdir = self.GUI_Gr_obj.animatsimdir
+        print(animatsimdir) 
+        new_run_dir = self.new_run_dir
+        
+        # ============ copy asim and aproj in the new_run_dir  ===============
+        list_ext = [".aproj", ".asim", ".aform"]
+        copyFileDir_ext(animatsimdir, new_run_dir, list_ext, copy_dir=0)
+        
+        
+        contenu = os.listdir(new_run_dir)
+        for element in contenu:
+            complete_filename = os.path.join(new_run_dir, element)
+            if os.path.isfile(complete_filename):
+                # print(f"Fichier:", (element))
+                # print(os.path.splitext(element))
+                if  os.path.splitext(element)[1] == ".aproj":
+                    self.aprojFileName = element
+                elif os.path.splitext(element)[1] == ".asim": 
+                    self.asimFileName = element
+        print("AprojFileName : ", self.aprojFileName)
+        print("AsimFileName : ",self.asimFileName)
+       
+        # ============  include perturbation in asim and aproj ===============
+        includePerturbationInAsim(self.pertStart, self.pertDur, self.pertForce,
+                                  self.asimFileName, new_run_dir)
+        includePerturbationinAproj(self.pertStart, self.pertDur, self.pertForce,
+                                   self.aprojFileName, new_run_dir)
+        # ====================================================================
+        
+        # ======== preserve original animattsimdir aproj and asim files ======
+        originalFinalDir = animatsimdir + "/originalFinalModel"
+        copyFileDir_ext(animatsimdir + "/FinalModel",
+                        originalFinalDir, list_ext, copy_dir=0)
+        # ====================================================================
+        
+        # ====== copy pert asim & aproj to animatsimdir/FinalModel ============
+        copyFileDir_ext(new_run_dir,
+                        animatsimdir + "/FinalModel", list_ext, copy_dir=0)
+        # ====================================================================
+       
+        
+        list_ext = [".aproj", ".asim", ".aform"]        
+        aprojSaveDir = new_run_dir + "/AprojFiles"
+        copyFileDir_ext(new_run_dir, aprojSaveDir, list_ext, copy_dir=0)
+        
+        FinalModelDir = new_run_dir + "/FinalModel"
+        copyFileDir_ext(new_run_dir, FinalModelDir, list_ext, copy_dir=0)       
+        self.ActivateModelwithPert()
+    
+    def ActivateModelwithPert(self):
+        self.GUI_Gr_obj.construct_df_par_bhv_remains()
+        self.affiche_behavior_map()
+        
+    def affiche_behavior_map(self):
+        xmin = self.GUI_Gr_obj.xmin
+        xmax = self.GUI_Gr_obj.xmax
+        ymin = self.GUI_Gr_obj.ymin
+        ymax = self.GUI_Gr_obj.ymax     
+        self.GUI_Gr_obj.plot_df_bhv(self.GUI_Gr_obj.df_bhvremain,
+                                    xmin=xmin, xmax=xmax,
+                                    ymin=ymin, ymax=ymax)
+        self.set_bhv_limits_btn.setEnabled(True)
+        
+    def set_bhv_limits(self):
+        """
+        Call ChooseInList() to change behaviour limit values.
+        If the "unselect all" key is pressed, then come back to original
+        limits (i.e. all bhv data are selected)
+        bhv limits are stored in bhv_set
+        """
+        self.rootdir = ""
+        self.scale_x = self.GUI_Gr_obj.scale_x
+        self.scale_y = self.GUI_Gr_obj.scale_y
+        self.behav_col = self.GUI_Gr_obj.behav_col
+        self.bhv_names = self.GUI_Gr_obj.bhv_names
+        xmin = self.GUI_Gr_obj.xmin
+        xmax = self.GUI_Gr_obj.xmax
+        ymin = self.GUI_Gr_obj.ymin
+        ymax = self.GUI_Gr_obj.ymax
+        
+        bhv_names = self.GUI_Gr_obj.bhv_names
+        # print(self.GUI_Gr_obj)
+        # print(bhv_names)
+        x_axis_bhv_name = bhv_names[self.GUI_Gr_obj.behav_col[0]]
+        y_axis_bhv_name = bhv_names[self.GUI_Gr_obj.behav_col[1]]
+        print("x_axis_bhv_name : ", x_axis_bhv_name)
+        print("y_axis_bhv_name : ", y_axis_bhv_name)
+        inf_x_axis_key = "{}.min".format(x_axis_bhv_name)
+        sup_x_axis_key = "{}.max".format(x_axis_bhv_name)
+        inf_y_axis_key = "{}.min".format(y_axis_bhv_name)
+        sup_y_axis_key = "{}.max".format(y_axis_bhv_name)
+        self.limits = [inf_x_axis_key, sup_x_axis_key,
+                       inf_y_axis_key, sup_y_axis_key]
+        print("bhv_set keys (=self.items)", self.limits)
+
+        self.listDic_bhv_lim_val = [{inf_x_axis_key:  xmin,
+                                     sup_x_axis_key:  xmax,
+                                     inf_y_axis_key:  ymin,
+                                     sup_y_axis_key:  ymax}]
+        self.listDicLimits_bhv = [{'bhv_limits': [inf_x_axis_key,
+                                                  sup_x_axis_key,
+                                                  inf_y_axis_key,
+                                                  sup_y_axis_key]}]
+        self.listDicSelectedPar = [{'parameters': []}]
+        self.selected_par = []
+        self.listDicSelectedPar2 = [{'parameters': []}, {'factor': []}]
+        self.selected_par2 = []
+        self.selected_factorpar = []
+
+        self.listDicSelectedBhv = [{'behaviours': []}]
+        self.selected_bhv = []
+        self.listDicSelectedBhv2 = [{'behaviours': []}, {'factor': []}]
+        self.selected_bhv2 = []
+        self.selected_factorbhv = []
+        
+        self.listDicSelectedNeurAct = [{'neural activities': []}]
+        self.selected_neurAct = []
+        self.listDicSelectedNeurAct2 = [{'neural activities': []},
+                                        {'factor': []}]
+        self.selected_neurAct2 = []
+        self.selected_factoNeurAct = []
+        
+        self.listDicSelSingleCol = [{'selectedCol': []}]
+        self.listDicSelCols = [{'selectedCols': []}]
+        self.lstDicSelcXY = [{'X': [], "Y": []}]
+        self.lstDicSelcXYZ = [{'X': [], "Y": [],  "Z": []}]
+        self.selected_factor = []
+        self.selected_two = []
+        self.selected_three = []
+        self.selectedCols = []
+        listChoix = list(self.listDicLimits_bhv[0].keys())
+        if verbose > 2:
+            print(self.listDicLimits_bhv)
+            print(self.limits)
+            print(self.listDic_bhv_lim_val)
+            print(listChoix)
+        titleText = "set min/max values for bhv_graph"
+        rep = ChooseInList.listTransmit(parent=None,
+                                        graphNo=0,
+                                        listChoix=listChoix,
+                                        items=self.limits,
+                                        listDicItems=self.listDicLimits_bhv,
+                                        onePerCol=[0],
+                                        colNames=["bhv_limits", "Value"],
+                                        dicValues=self.listDic_bhv_lim_val[0],
+                                        typ="val",
+                                        titleText=titleText)
+
+        self.listDicLimits_bhv = rep[0]
+        if rep[1] == {}:
+            print("Set limits back to original")
+            self.to_init()
+            self.bhv_set = self.listDic_bhv_lim_val[0]
+        else:
+            self.listbhv_limit_names = []
+            self.bhv_set = rep[1]
+            if verbose > 2:
+                print("rep[1]", rep[1])
+            for i in range(len(self.listDicLimits_bhv[0][listChoix[0]])):
+                itemName = self.listDicLimits_bhv[0][listChoix[0]][i]
+                self.listbhv_limit_names.append(itemName)
+                self.listDic_bhv_lim_val[0][itemName] = float(rep[1][itemName])
+                print(itemName, rep[1][itemName])
+        if verbose > 2:
+            print("self.listDicLimits_bhv", self.listDicLimits_bhv)
+            print("bhv_set: ", self.bhv_set)
+        self.GUI_Gr_obj.bhv_set = self.bhv_set
+
+        # ========  adjust df_glob and plot bhv_win   ===========
+        rep2 = self.restrain_to_bhv_set()
+        self.GUI_Gr_obj.df_glob, self.GUI_Gr_obj.ss_titre = rep2
+        namex = self.GUI_Gr_obj.bhv_names[self.GUI_Gr_obj.behav_col[0]]
+        namey = self.GUI_Gr_obj.bhv_names[self.GUI_Gr_obj.behav_col[1]]
+        self.GUI_Gr_obj.bhv_ymin = float(self.bhv_set[namey + ".min"])
+        self.GUI_Gr_obj.bhv_ymax = float(self.bhv_set[namey + ".max"])
+        self.GUI_Gr_obj.bhv_xmin = float(self.bhv_set[namex + ".min"])
+        self.GUI_Gr_obj.bhv_xmax = float(self.bhv_set[namex + ".max"])
+        
+        
+    def restrain_to_bhv_set(self):
+        df_bhv = copy.deepcopy(self.GUI_Gr_obj.df_bhvremain)
+        df_par = copy.deepcopy(self.GUI_Gr_obj.df_parremain)
+        res = self.GUI_Gr_obj.extract_new_df(df_par, df_bhv,
+                                             self.GUI_Gr_obj.bhv_set)
+        df_glob, ss_titre = res[0], res[1]
+        index = list(df_glob.index)
+        if self.df is not None:
+            df_glob = self.df.loc[index]
+            # index = list(self.df["rg_in_whole"])
+        else:
+            index = df_glob.index
+        xmin = float(self.GUI_Gr_obj.bhv_set['endangle.min'])
+        xmax = float(self.GUI_Gr_obj.bhv_set['endangle.max'])
+        ymin = float(self.GUI_Gr_obj.bhv_set['max_speed.min'])
+        ymax = float(self.GUI_Gr_obj.bhv_set['max_speed.max'])
+
+        bhv_xmin = xmin / self.scale_x
+        bhv_xmax = xmax / self.scale_x
+        bhv_ymin = ymin / self.scale_y
+        bhv_ymax = ymax / self.scale_y
+
+        self.GUI_Gr_obj.plot_map_behav(df_bhv.loc[index],
+                                       xmin=bhv_xmin, xmax=bhv_xmax,
+                                       ymin=bhv_ymin, ymax=bhv_ymax)
+
+        self.GUI_Gr_obj.mafen.df_bhvremain = df_bhv.loc[index]
+        self.GUI_Gr_obj.mafen.df_parremain = df_par.loc[index]
+        self.GUI_Gr_obj.mafen.source_df_bhvremain = df_bhv.loc[index]
+        self.GUI_Gr_obj.mafen.source_df_parremain = df_par.loc[index]
+        self.GUI_Gr_obj.mafen.bhvPlot.plot_item.clearPlots()
+
+        self.GUI_Gr_obj.plot_df_bhv(df_bhv.loc[index],
+                                    xmin=xmin, xmax=xmax,
+                                    ymin=ymin, ymax=ymax)
+
+        self.GUI_Gr_obj.mafen.clearParam()
+        self.GUI_Gr_obj.mafen.param_in_blue(df_par.loc[index])
+        self.run_pert_btn.setEnabled(True)
+        return df_glob, ss_titre
+
+    def chartgraph_selected_bhv(self):
+        """
+        """
+        # ====== the index of df_glob is used to create seeds_selected =======
+        # variable in GEP_GUI. We will use "run_selected_param" from GEP_GUI to
+        # run the restrained parameter sets.
+        # To do this we copy anmatsimdir to GEP_GUI
+        # and we copy new_run_dir to GEP_GUI.newSeedFolder variable
+        
+        df_glob = self.GUI_Gr_obj.df_glob
+        NbSelectedBhv = len(df_glob)
+        print("{} selected bhv".format(NbSelectedBhv))
+        """
+        msg = "Save restrained dataframes with graphs?"
+        msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+        ret = MessageBox(None, msg, msg2, 3)
+        """
+        ret = 6
+        animatsimdir = self.GUI_Gr_obj.animatsimdir
+        print(animatsimdir)
+        new_run_dir = self.new_run_dir
+        print(ret)
+        if ret == 2:
+            print("ESC")
+        elif ret == 6:
+            print("YES --> Saves the bhv, par dataframes of selected data")
+        elif ret == 7:
+            print("NO: --> Do Not Save restrained dataframes")
+        if ret == 6:
+            self.new_run_dir = new_run_dir
+            self.GUI_Gr_obj.new_run_dir = new_run_dir
+            if not os.path.exists(new_run_dir):
+                os.makedirs(new_run_dir)
+            file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
+            self.run_selected_bhv(file_name)
+
+    def run_selected_bhv(self, file_name):
+        # self=MyWin.graph_settings
+        optSet = self.GUI_Gr_obj.optSet
+        gravity = readGravityfromAsim(optSet.model)
+        optSet.gravity = gravity
+
+        # ============== get df_parremain from GUI_graph =================
+        # the two following commented lines are from restrain_to_bhv_set()
+        # self.GUI_Gr_obj.mafen.df_bhvremain = df_bhv.iloc[df_glob.index]
+        # self.GUI_Gr_obj.mafen.df_parremain = df_par.iloc[df_glob.index]
+        # This means that GEP_GUI has already the good df_parremain
+        # In GEP_GUI, the restrained df was saved --> df_glob
+        df_parremain = self.GUI_Gr_obj.mafen.df_parremain
+        df_bhvremain = self.GUI_Gr_obj.mafen.df_bhvremain
+        self.GUI_Gr_obj.mafen.select_df_bhvremain = df_bhvremain
+        df_glob = self.GUI_Gr_obj.df_glob
+        # lst_valid = self.GUI_Gr_obj.lst_valid
+        seeds_selected = list(df_glob.rgserie)
+        df_parremain.index = seeds_selected
+        df_bhvremain.index = seeds_selected
+        nbpar = self.GUI_Gr_obj.mafen.nbpar
+        # seeds_selected = list(df_glob.rgserie)
+        selected_pairs = []
+        old_selected_pairs = []
+        for select in seeds_selected:
+            print(df_parremain.loc[select][:5])
+            rg_pair = int(df_bhvremain.loc[select]["rgserie"])
+            print(optSet.pairs[rg_pair][:5])
+            old_selected_pairs.append(optSet.pairs[rg_pair])
+            selected_pairs.append(np.array(
+                df_parremain.loc[select][:nbpar+2]))
+            print()
+        self.GUI_Gr_obj.mafen.selected_pairs = selected_pairs
+
+        # datastructure = self.GUI_Gr_obj.datastructure
+        datastructure = optSet.datastructure
+        xCoactPenality = readCoacPenality(datastructure)
+        xCoactPenality1, xCoactPenality2 = xCoactPenality
+        optSet.xCoactPenality1 = xCoactPenality1
+        optSet.xCoactPenality2 = xCoactPenality2
+        # rootdir = self.GUI_Gr_obj.rootdir======
+        
+        # ======== create new_run_dir folder with incremental name ============
+        animatsimdir = self.GUI_Gr_obj.animatsimdir
+        print(animatsimdir)
+        """
+        graph_path = self.GUI_Gr_obj.graph_path
+        graph_path = graph_path.replace("\\", "/")
+        listdir = os.listdir(graph_path)
+        lst_subdir = [sd for sd in listdir
+                      if os.path.isdir(graph_path + "/" + sd)]
+        ix = 0
+        for sdir in lst_subdir:
+            if sdir[:4] == "run-":
+                ix += 1
+        newrundirname = "run" + '-{0:d}'.format(ix)
+        new_run_dir = graph_path + "/" + newrundirname
+        self.GUI_Gr_obj.new_run_dir = new_run_dir
+        if not os.path.exists(new_run_dir):
+            os.makedirs(new_run_dir)
+        """
+        new_run_dir = self.new_run_dir
+        ficname = "file_name.txt"
+        complete_fname = new_run_dir + "/" + ficname
+        with open(complete_fname, 'w') as fich:
+            fich.write(file_name)
+        fich.close()
+
+        list_ext = [".aproj", ".asim", ".aform"]
+        copyFileDir_ext(animatsimdir, new_run_dir, list_ext, copy_dir=0)
+        aprojSaveDir = new_run_dir + "/AprojFiles"
+        copyFileDir(new_run_dir, aprojSaveDir, copy_dir=0)
+
+        # ====== the index of df_glob is used to create seeds_selected =======
+        # variable in GEP_GUI. We will use "run_selected_param" from GEP_GUI to
+        # run the restrained parameter sets.
+        # To do this we copy anmatsimdir to GEP_GUI
+        # and we copy new_run_dir to GEP_GUI.newSeedFolder variable
+        """
+        self.GUI_Gr_obj.mafen.seeds_selected = [lst_valid[sel] \
+                                                for sel in seeds_selected]
+        """
+        self.GUI_Gr_obj.mafen.seeds_selected = seeds_selected
+        self.GUI_Gr_obj.mafen.rg_bhv_selected = seeds_selected
+        self.GUI_Gr_obj.mafen.animatsimdir = animatsimdir
+        self.GUI_Gr_obj.mafen.newDestFolder = new_run_dir
+        gepdatadir = new_run_dir + "/GEPdata"
+        if not os.path.exists(gepdatadir):
+            os.makedirs(gepdatadir)
+        # ===================  run selected paramsets ====================
+        self.GUI_Gr_obj.mafen.run_selected_param()
+        """
+        self=MyWin.pert_settings
+        for idOK in range(10):
+            idx = self.GUI_Gr_obj.lst_valid[idOK]
+            print(idOK, idx)
+            print(self.GUI_Gr_obj.df_parremain.rgserie[idOK])
+            print(self.GUI_Gr_obj.df_parremain.loc[idOK][:5])
+            print(self.GUI_Gr_obj.optSet.pairs[idx][:5])
+        """
+        # ================== make graphs for each selected bhv ============
+        chart_glob_name = self.GUI_Gr_obj.mafen.procName + "_chart"
+        chartdir = new_run_dir + "/GEPChartFiles"
+        resultdir = new_run_dir + "/ResultFiles"
+        if not os.path.exists(resultdir):
+            os.makedirs(resultdir)
+        src = os.path.join(animatsimdir, "ResultFiles")
+        dst = os.path.join(new_run_dir, "ResultFiles")
+        # copyFile("paramOpt.pkl", src, dst)
+        copyFile("template.txt", src, dst)
+        copyFileWithExt(src, dst, ".pkl")  
+        # templateFileName = resultdir + "/template.txt"
+        
+        self.GUI_Gr_obj.mafen.seeds_selected = seeds_selected
+        self.GUI_Gr_obj.mafen.optSet.spanStim = 5
+        self.GUI_Gr_obj.mafen.optSet.spanSyn = 5
+        self.GUI_Gr_obj.mafen.saves_newGEPdata(seedDirCreate=False)
+        
+        for idx in range(len(df_bhvremain)):
+            print(idx)
+            if idx < 10:
+                zero = "0"
+            else:
+                zero = ""
+            dstfile = chart_glob_name + zero + str(idx)
+            chartName = dstfile + ".txt"
+            self.GUI_Gr_obj.mafen.checkChartComment(chartdir, chartName, idx)
+            # graphfromchart(optSet, chartdir, chartName, templateFileName)
+            chartFullName = chartdir + "/" + chartName
+            try:
+                testVarMsePlot(optSet, chartFullName, interval=1./6)
+            except Exception as e:
+                None
+                if verbose > 2:
+                    print(e)
+        originalFinalDir = animatsimdir  + "/originalFinalModel"            
+        # ======= copy back original animattsimdir aproj and asim files ======       
+        copyFileDir(originalFinalDir, animatsimdir + "/FinalModel", copy_dir=0)
+        # ====================================================================
+
+    def closeIt(self):
+        """
+        doc string
+        """
+        self.GUI_Gr_obj.close_otherwin()
+        self.close()
+
+        
+
 
 #   TODO
 class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
@@ -6092,6 +6831,8 @@ class Ui_GrChart(object):
             QtWidgets.QPushButton("&Make/Analyze (par+bhv) dataframe")
         self.save_pardf_bhvdf_btn = \
             QtWidgets.QPushButton("&save (par+bhv) dataframe to csv")
+        self.make_bhvdf_shock_btn = \
+            QtWidgets.QPushButton("&Analyze perturbation effects on bhv")                     
         self.gr_chart_tcourse_btn = \
             QtWidgets.QPushButton("&Make graph (chart, timeCourse)")
         self.gr_chart_btn = \
@@ -6110,6 +6851,7 @@ class Ui_GrChart(object):
         # Add widgets to the layout in their proper positions
         buttonLayout1.addWidget(self.make_pardf_bhvdf_btn)
         buttonLayout1.addWidget(self.save_pardf_bhvdf_btn)
+        buttonLayout1.addWidget(self.make_bhvdf_shock_btn)
         buttonLayout1.addWidget(self.radar_Button)
         buttonLayout1.addWidget(self.gr_chart_tcourse_btn)
         buttonLayout1.addWidget(self.gr_chart_btn)
@@ -6221,6 +6963,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.select_3_col = []
         self.make_pardf_bhvdf_btn.clicked.connect(self.build_analyze_bhvpar_df)
         self.save_pardf_bhvdf_btn.clicked.connect(self.save_bhvpar_df_to_csv)
+        self.make_bhvdf_shock_btn.clicked.connect(self.build_shock_on_parbhvdf)
         self.gr_chart_tcourse_btn.clicked.connect(self.makegr_chart_tcourse)
         self.gr_chart_btn.clicked.connect(self.make_all_chart)
         self.analyze_bhv_neur_par_chart_btn.clicked.connect(
@@ -6301,30 +7044,12 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
 
     def build_analyze_bhvpar_df(self):
         self.close_otherwin()
-        """
-        ret = 7
-        df_bhvremain = self.GUI_Gr_obj.df_bhvremain
-        if df_bhvremain is not None:
-            msg = "A previous dataframe is present \n Use Same dataframe?"
-            ret = MessageBox(None, msg, 'Previous dataframe detected', 3)
-            print ret
-            if ret == 2:
-                print "ESC"
-            elif ret == 6:
-                print "YES --> Keep the previous dataframe"
-                print "df_bhvremain size : {}\n".format(len(df_bhvremain))
-            elif ret == 7:
-                print "NO: --> Look for another dierctory"
-        if ret == 7:
-            self.make_bhvpardf_bhvparwins()
-        """
         self.make_bhvpardf_bhvparwins()
         listpar = self.par_names
         listbhv = self.bhv_names
         # =====================================================================
         self.graph_settings = Graph_Setting(listpar, listbhv, None, self)
         self.graph_settings.show()
-
         # ========= positionning the Graph_Setting window on screen ===========
         sg = QtWidgets.QDesktopWidget().screenGeometry()
         mywin_height = self.geometry().height()
@@ -6334,6 +7059,50 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         yshift = sg.height() - graphSet_height - mywin_height - 40
         self.graph_settings.screen_loc(xshift=xshift, yshift=yshift)
         # =====================================================================
+
+    def build_shock_on_parbhvdf(self):
+        self.close_otherwin()
+        self.explore_subfolders()
+        nb_folders = len(self.listGEPFolders)
+        self.read_GEPdata_infos()
+        self.setErrThr()
+        self.pert_settings = Perturbation_Setting0(None, self)
+        self.pert_settings.show()
+        # ========= positionning the Graph_Setting window on screen ===========
+        sg = QtWidgets.QDesktopWidget().screenGeometry()
+        mywin_height = self.geometry().height()
+        shockSet_height = self.pert_settings.geometry().height()
+        # graphSet_width = self.Perturbation_Setting.geometry().width()
+        xshift = 10
+        yshift = sg.height() - shockSet_height - mywin_height - 40
+        self.pert_settings.screen_loc(xshift=xshift, yshift=yshift)
+        # =====================================================================
+        """
+        self.make_bhvpardf_bhvparwins()
+        listpar = self.par_names
+        listbhv = self.bhv_names
+        """
+        # =====================================================================
+
+    def plot_df_bhv(self, df_bhvremain, xmin=0, xmax=1,
+                    ymin=0, ymax=1.5):
+        listcolors = []
+        for i in range(20):
+            listcolors.append(pg.intColor(i, 6, maxValue=128))
+        color = listcolors[0]
+        behav_val_array = np.array(df_bhvremain)[:, self.behav_col]
+        self.mafen.bhvPlot.plot_item.setXRange(xmin, xmax)
+        self.mafen.bhvPlot.plot_item.setYRange(ymin, ymax)
+        self.mafen.bhvPlot.plot_item.plot(behav_val_array[:, 0],
+                                          behav_val_array[:, 1],
+                                          pen=None, symbol='o',
+                                          symbolBrush=color)
+        self.mafen.bhvPlot.show()
+        # ==============================================================
+        QtWidgets.QApplication.processEvents()
+        # ==============================================================     
+
+        
 
     def make_bhvpardf_bhvparwins(self):
         """
@@ -6345,19 +7114,6 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         ret = self.make_bhvpardf()
         df_parremain = self.df_parremain
         df_bhvremain = self.df_bhvremain
-        """
-        behav_col = self.behav_col
-        max_x_bhv = df_bhvremain[df_bhvremain.columns[behav_col[0]]].max()
-        max_x_bhv_rel = max_x_bhv / self.scale_x
-        max_y_bhv = df_bhvremain[df_bhvremain.columns[behav_col[1]]].max()
-        max_y_bhv_rel = max_y_bhv / self.scale_y
-        max_x = float(int(max_x_bhv_rel*10)+1)/10
-        max_y = float(int(max_y_bhv_rel*10)+1)/10
-        bhv_xmin = 0
-        bhv_xmax = max_x
-        bhv_ymin = 0
-        bhv_ymax = max_y
-        """
         bhv_xmin = self.bhv_xmin
         bhv_xmax = self.bhv_xmax
         bhv_ymin = self.bhv_ymin
@@ -6541,7 +7297,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         self.one_expe = one_expe
         self.directory = directory
         self.listOfSearchedDir = listOfSearchedDir
-        
+        self.animatsimdir = animatsimdir
         
     def read_GEPdata_infos(self):
         """
@@ -8159,7 +8915,10 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                    and nam not in ['chart', 'ampl',
                                                    'rgserie', 'origine',
                                                    'orig_rg', 'rg_in_whole']]
-            if os.path.split(self.mydir)[-1] != "GEPdata":
+            if os.path.split(self.mydir)[-1] == "graphs":
+                one_expe = True
+                self.listGEPFolders = [self.mydir]
+            elif os.path.split(self.mydir)[-1] != "GEPdata":
                 one_expe = False
                 mltpleDirPath = self.mydir 
                 with open(mltpleDirPath+'/dic_folds.json') as f:
