@@ -361,7 +361,7 @@ Modified October 22, 2025 (D. Cattaert):
     self.chart_glob_df), that includes now the length of df_chart.
     Method "plot_bhvmap_nbBhvOK" reduces the number of points of the graph plot
 Modified May 24 2026 (D. Cattaert):
-    New predecure ("Analyse perturbation effects on par+bhv df) allows to add
+    New predecure ("Analyse perturbation effects on bhv") allows to add
     perturbation to the arm during movement. A new stimulus is added in the
     FinalModel files (.asim and .aproj) of the original directory.
     New subdirectory of "graph" directory is created to store the rusults of
@@ -5442,6 +5442,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
 
 
+#   TODO
 class Perturbation_Setting0(QtWidgets.QDialog):
     def __init__(self, df, GUI_Gr_obj, parent=None):
         super(Perturbation_Setting0, self).__init__(parent)
@@ -5528,6 +5529,40 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         """
         self=MyWin.pert_settings
         """
+        animatsimdir = self.GUI_Gr_obj.animatsimdir
+        print(animatsimdir)
+        # ======== preserve original animattsimdir aproj and asim files ======
+        list_ext = [".aproj", ".asim", ".aform"]
+        originalFinalDir = animatsimdir + "/originalFinalModel"
+        copyFileDir_ext(animatsimdir + "/FinalModel",
+                        originalFinalDir, list_ext, copy_dir=0)
+        # ====================================================================
+        pert_FinalModel_dir = animatsimdir + "/FinalModel"
+        contenu = os.listdir(pert_FinalModel_dir)
+        for element in contenu:
+            complete_filename = os.path.join(animatsimdir, element)
+            if os.path.isfile(complete_filename):
+                # print(f"Fichier:", (element))
+                # print(os.path.splitext(element))
+                if  os.path.splitext(element)[1] == ".aproj":
+                    self.aprojFileName = element
+                elif os.path.splitext(element)[1] == ".asim": 
+                    self.asimFileName = element
+        print("AprojFileName : ", self.aprojFileName)
+        print("AsimFileName : ",self.asimFileName)
+       
+        # ============  include perturbation in asim and aproj ===============
+        includePerturbationInAsim(self.pertStart, self.pertDur, self.pertForce,
+                                  self.asimFileName, pert_FinalModel_dir)
+        includePerturbationinAproj(self.pertStart, self.pertDur, self.pertForce,
+                                   self.aprojFileName, pert_FinalModel_dir)
+        # ====================================================================
+        self.ActivateModelwithPert()
+    
+    def ActivateModelwithPert(self):
+        """
+        """
+        self.GUI_Gr_obj.construct_df_par_bhv_remains()
         graph_path = self.GUI_Gr_obj.graph_path
         graph_path = graph_path.replace("\\", "/")
         listdir = os.listdir(graph_path)
@@ -5541,56 +5576,22 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         self.new_run_dir = graph_path + "/" + newrundirname
         # ======== create new_run_dir folder with incremental name ===========
         animatsimdir = self.GUI_Gr_obj.animatsimdir
-        print(animatsimdir) 
+        print(animatsimdir)
         new_run_dir = self.new_run_dir
         
         # ============ copy asim and aproj in the new_run_dir  ===============
+        pert_FinalModel_dir =animatsimdir + "/FinalModel"
         list_ext = [".aproj", ".asim", ".aform"]
-        copyFileDir_ext(animatsimdir, new_run_dir, list_ext, copy_dir=0)
-        
-        
-        contenu = os.listdir(new_run_dir)
-        for element in contenu:
-            complete_filename = os.path.join(new_run_dir, element)
-            if os.path.isfile(complete_filename):
-                # print(f"Fichier:", (element))
-                # print(os.path.splitext(element))
-                if  os.path.splitext(element)[1] == ".aproj":
-                    self.aprojFileName = element
-                elif os.path.splitext(element)[1] == ".asim": 
-                    self.asimFileName = element
-        print("AprojFileName : ", self.aprojFileName)
-        print("AsimFileName : ",self.asimFileName)
-       
-        # ============  include perturbation in asim and aproj ===============
-        includePerturbationInAsim(self.pertStart, self.pertDur, self.pertForce,
-                                  self.asimFileName, new_run_dir)
-        includePerturbationinAproj(self.pertStart, self.pertDur, self.pertForce,
-                                   self.aprojFileName, new_run_dir)
-        # ====================================================================
-        
-        # ======== preserve original animattsimdir aproj and asim files ======
-        originalFinalDir = animatsimdir + "/originalFinalModel"
-        copyFileDir_ext(animatsimdir + "/FinalModel",
-                        originalFinalDir, list_ext, copy_dir=0)
-        # ====================================================================
-        
-        # ====== copy pert asim & aproj to animatsimdir/FinalModel ============
-        copyFileDir_ext(new_run_dir,
-                        animatsimdir + "/FinalModel", list_ext, copy_dir=0)
-        # ====================================================================
-       
+        copyFileDir_ext(pert_FinalModel_dir, new_run_dir, list_ext, copy_dir=0)
         
         list_ext = [".aproj", ".asim", ".aform"]        
         aprojSaveDir = new_run_dir + "/AprojFiles"
-        copyFileDir_ext(new_run_dir, aprojSaveDir, list_ext, copy_dir=0)
+        copyFileDir_ext(pert_FinalModel_dir, aprojSaveDir,
+                        list_ext, copy_dir=0)
         
         FinalModelDir = new_run_dir + "/FinalModel"
-        copyFileDir_ext(new_run_dir, FinalModelDir, list_ext, copy_dir=0)       
-        self.ActivateModelwithPert()
-    
-    def ActivateModelwithPert(self):
-        self.GUI_Gr_obj.construct_df_par_bhv_remains()
+        copyFileDir_ext(pert_FinalModel_dir, FinalModelDir,
+                        list_ext, copy_dir=0)
         self.affiche_behavior_map()
         
     def affiche_behavior_map(self):
@@ -5931,6 +5932,15 @@ class Perturbation_Setting0(QtWidgets.QDialog):
                 None
                 if verbose > 2:
                     print(e)
+                    
+        # ======= replaces unshocked asim and aproj by shoked ones ============
+        list_ext = [".aproj", ".asim", ".aform"]        
+        pert_FinalModel_dir = animatsimdir + "/FinalModel"            
+        aprojSaveDir = new_run_dir + "/AprojFiles"
+        copyFileDir_ext(pert_FinalModel_dir, aprojSaveDir,
+                        list_ext, copy_dir=0)
+        copyFileDir_ext(pert_FinalModel_dir, new_run_dir,
+                        list_ext, copy_dir=0)
         originalFinalDir = animatsimdir  + "/originalFinalModel"            
         # ======= copy back original animattsimdir aproj and asim files ======       
         copyFileDir(originalFinalDir, animatsimdir + "/FinalModel", copy_dir=0)
@@ -5943,7 +5953,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         self.GUI_Gr_obj.close_otherwin()
         self.close()
 
-        
+
 
 
 #   TODO
@@ -7082,27 +7092,8 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
         listpar = self.par_names
         listbhv = self.bhv_names
         """
-        # =====================================================================
+        # =====================================================================  
 
-    def plot_df_bhv(self, df_bhvremain, xmin=0, xmax=1,
-                    ymin=0, ymax=1.5):
-        listcolors = []
-        for i in range(20):
-            listcolors.append(pg.intColor(i, 6, maxValue=128))
-        color = listcolors[0]
-        behav_val_array = np.array(df_bhvremain)[:, self.behav_col]
-        self.mafen.bhvPlot.plot_item.setXRange(xmin, xmax)
-        self.mafen.bhvPlot.plot_item.setYRange(ymin, ymax)
-        self.mafen.bhvPlot.plot_item.plot(behav_val_array[:, 0],
-                                          behav_val_array[:, 1],
-                                          pen=None, symbol='o',
-                                          symbolBrush=color)
-        self.mafen.bhvPlot.show()
-        # ==============================================================
-        QtWidgets.QApplication.processEvents()
-        # ==============================================================     
-
-        
 
     def make_bhvpardf_bhvparwins(self):
         """
@@ -7283,6 +7274,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                         gepFold = os.path.join(expPath, fold1)
                         self.listGEPFolders.append(gepFold)
                         # print(gepFold)
+            animatsimdir = os.path.split(self.listGEPFolders[0])[0]
             if len(self.listGEPFolders) == 1:
                 print("Only One Experiment chosen")
                 one_expe = True
