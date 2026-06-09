@@ -190,6 +190,10 @@ Modified November 25, 2025 (D. Cattaert):
         if lag % int(max_lag/50) == 0:
             if affich:
                 print("/", end='')
+modified June 09, 2026 (D. Cattaert):
+    To allow parallel processing of perturbatiuon procedure, new procedure 
+    runTrials_saveAll() has been written. It is used in GEP_GUI.py medhods,
+    and makeGraphs.py.
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -2130,6 +2134,33 @@ def savechartfile(name, directory, chart, comment):
     else:
         print("no chart")
     return chartname
+
+
+def savechartfileWithComment(destfilename, chart_dstdir, txtchart, comment):
+    if not os.path.exists(chart_dstdir):
+        os.makedirs(chart_dstdir)
+    # copy(folders.animatlab_result_dir + txtchartname)
+    if txtchart != []:
+        rootname = os.path.split(chart_dstdir)[0]
+        expename2 = os.path.split(rootname)[1]
+        split2 = os.path.split(rootname)[0]
+        expename1 = os.path.split(split2)[1]
+        split1 = os.path.split(split2)[0]
+        expename0 = os.path.split(split1)[1]
+        experoot = expename0 + "/" + expename1 + "/" + expename2 
+        text = destfilename + ";  " + experoot + "; " + comment
+        completeName = chart_dstdir + "/" + destfilename
+        print("saving charttxt  file... " + destfilename, end=' ')
+        f = open(completeName, 'w')
+        f.write(str(text + '\n'))
+        for i in range(len(txtchart)):
+            for j in range(len(txtchart[i])-1):
+                f.write(str(txtchart[i][j]) + '\t')
+            f.write(str(txtchart[i][j+1]) + '\n')
+        f.close()
+    else:
+        print("no chart")
+
 
 
 def savefileincrem(name, directory, tab, comment):
@@ -5021,6 +5052,297 @@ def getBestResults(newinfound, minErr, err, mse, coactpenality, idx, deb,
         return [False, minErr, minMse, minCoactP, idx, (idx+deb)]
     # else we return the paramaters as they are
     return [newinfound, minErr, minMse, minCoactP, minsimSubNb, minsimulNb]
+
+
+
+def runTrials_saveAll(win, paramserie, paramserieSlices, destdir, startNb=0,
+              savechart=0, procName="GEP",
+              runType="rdparam", randParEvol=""):
+    """
+    Function that runs a series of AnimatLab simulations defined in paramserie
+    and organized in paramseriSlices (number of parallel runs, and number o
+    rounds). It is used in exec_rand_param(): the script used by various
+    simulations:
+        the mehtod do_GEP_rand() of the class MaFenetre, that calls:
+            the method exec_gep_rand()  that calls:
+                the method exec_rand_param()  that calls:
+        the function find_aim_behav() of the class MaFenetre, that calls:
+            aim_behav_extend()
+            aim_behav_fill()    These thre functions are in gep_tool_box.py
+        the method do_rand_param()    that also calls
+            the method exec_rand_param()
+        and in the method saves_seeds() to re-run the selected behav parameters
+    It returns:
+        mse_coact, simSetGlob, lst_err, tabBehavElts, lst_tab, lst_simNb:
+            the list of coactivation cost
+            the the list of simSet files
+            the list of errors
+            the list of behaviour elements
+            the list of charts
+            the list of simulation numbers
+    it saves all runs
+    """
+    # the two next lines are for debug
+    optSet = win.optSet
+    win.optSet.paramserie = paramserie
+    win.optSet.paramserieSlices = paramserieSlices
+    win.startNb = startNb
+    model = optSet.model
+    folders = optSet.folders
+    motorStimuli = optSet.motorStimuli
+    setMotorStimsOff(model, motorStimuli)
+
+    if procName == "GEP":
+        print_adapt_tmplate_proc_MSE = 0
+        print_adapt_tmplate_proc_varmse = 1
+    else:
+        print_adapt_tmplate_proc_MSE = 1
+        print_adapt_tmplate_proc_varmse = 0
+
+    print("paramserieSlices:", paramserieSlices, end=' ')
+    erase_folder_content(os.path.join(folders.animatlab_rootFolder,
+                                      "SimFiles"))
+    mse_coact = np.array(None)
+    win.lst_bestchart = []
+    win.lst_chartName = []
+    win.lst_bestParNb = []
+    data_behav = []
+    gooddata_behav = []
+    tab_mse = []
+    lst_simNb = []
+    lst_err = []
+    tabBehavElts = []
+    win.bestchartName = ""
+    win.bestParamNb = 0
+    simSet = SimulationSet.SimulationSet()
+    simSetGlob = SimulationSet.SimulationSet()
+    stimParName = optSet.stimParName
+    synParName = optSet.synParName
+    synNSParName = optSet.synNSParName
+    synFRParName = optSet.synFRParName
+
+    minCoactP = 100000.
+    simulNb = 0
+    saveBad = True
+    sourceAsimFile = optSet.model.asimFile
+    simficName = os.path.split(model.asimFile)[-1]
+    simBaseName = os.path.splitext(simficName)[0]
+    srcAsimDir = folders.animatlab_rootFolder + "/SimFiles"
+    
+    if len(paramserie) > 9:
+        preTot = "0"
+    else:
+        preTot = ""
+    deb = 0
+    fin = 0
+    lst_tab = []
+    # dstdir = os.path.join(folders.animatlab_result_dir, "tmpBestChart")
+    # if not os.path.exists(dstdir):
+    #     os.makedirs(dstdir)
+    chart_dstdir = destdir + "/GEPChartFiles"
+    asim_dstdir = destdir + "/GEPAsimFiles"
+    aproj_dstdir = destdir + "/AprojFiles"
+    GEPdata_dstdir = destdir + "/GEPdata"
+    
+    # goodChartFound = False
+    for run in range(len(paramserieSlices)):
+        saveBad = True
+        goodChartInRun = False
+        erase_folder_content(os.path.join(folders.animatlab_rootFolder,
+                                          "SimFiles"))
+        deb = fin
+        # deb = run*win.nb_activeprocs
+        fin = deb + paramserieSlices[run]
+        # fin = (run+1)*win.nb_activeprocs
+        print("deb:", deb, "fin:", fin, end=' ')
+        subparamserie = paramserie[deb:fin]
+        if verbose > 2:
+            print()
+            print(subparamserie)
+        simSet.samplePts = []
+        simSetGlob.samplePts = []
+        for idx, x in enumerate(subparamserie):
+            if verbose > 2:
+                print(idx, x)
+            [simSet, vals] = normToRealVal(x, optSet, simSet,
+                                           stimParName, synParName,
+                                           synNSParName, synFRParName)
+            simSetGlob.set_by_pts(simSet.samplePts)
+        if verbose > 2:
+            print(simSetGlob.samplePts)
+    
+        folders = optSet.folders
+        model = optSet.model
+        projMan = optSet.projMan
+        projMan.make_asims(simSetGlob)
+        win.simSetGlob = simSetGlob
+        # projMan.run(cores=-1)
+        # =====================================================================
+        projMan.run(cores=paramserieSlices[run])
+        # =====================================================================
+
+        for idx, x in enumerate(subparamserie):
+            # reading the .asim files in SimFile directory
+            # idx+=1
+            # x = subparamserie[idx]
+            if len(subparamserie) > 9:
+                pre = "0"
+            else:
+                pre = ""
+            fileName = findTxtFileName(model, optSet, pre, idx+1)
+            if not os.path.isfile(folders.animatlab_result_dir +"/"+ fileName):
+                print()
+                print("WARNING!!!... chart file misssing: ", fileName)
+                print("... Restarting run")
+                projMan.run(cores=paramserieSlices[run])
+
+            tab = readTablo(folders.animatlab_result_dir, fileName)
+            lst_tab.append(tab)
+            # ================================================================
+            quality = testquality(optSet, tab, optSet.template, "",
+                                  affich=print_adapt_tmplate_proc_MSE)
+            # ================================================================
+            mse = quality[0]
+            coactpenality = quality[1]
+            otherpenality = quality[2]
+
+            # ================================================================
+            resbehav = getbehavElts(optSet, tab,
+                                    print_adapt_tmplate_proc_varmse)
+            # ================================================================
+
+            startangle = resbehav[0]
+            endangle = resbehav[1]
+            # end_mvt2 = resbehav[5]
+            # dur_mvt2 = resbehav[6]
+            varmse = resbehav[7]
+            
+            """
+            if varmse<1 and startangle<0.1 and endangle>10:
+                break
+            """
+            
+            varcoactpenality = resbehav[8]
+            varotherpenality = resbehav[9]
+            err = varmse+varcoactpenality
+            txt = "\terr:{:4.4f}; varmse:{:4.4f}; coactpenality:{};"
+            text2 = ""
+            for key in varotherpenality:
+                text2 += key + ":{:.2f}    ".format(varotherpenality[key])
+            txt = txt + "\n" + text2
+            comment0 = txt.format(err, varmse, varcoactpenality)
+            coactpenality = varcoactpenality
+            otherpenality = varotherpenality
+            resbehav = resbehav[:8]  # remove coactpenality, otherpenality ...
+
+            if verbose > 3:
+                print(comment0)
+                                            
+            minCoactP = coactpenality
+            simSubNb = idx
+            simulNb = idx + deb
+            data_behav.append([err, varmse, minCoactP,
+                               simSubNb, simulNb])
+            gooddata_behav.append([err, varmse, minCoactP,
+                                   simSubNb, simulNb])
+            print(simulNb, err, "\t")
+           
+            mse_coact = [mse, coactpenality]
+            behavElts = np.concatenate([mse_coact, resbehav])
+            tabBehavElts.append(behavElts)
+            tab_mse.append([mse, coactpenality])
+            
+            #win.tabBehavElts = tabBehavElts
+            #win.tab_mse = tab_mse
+
+        # ============   saves charts, asim, aproj to pert directory   ========
+        for behav in data_behav:
+            # For each behavior found
+            [err, mse, CoactP, simSubNb, simulNb] = behav
+            if simulNb >= deb:
+                # =====================  saving chart =========================
+                chartFileName = findTxtFileName(model, optSet, pre, simSubNb + 1)
+                # We retrieve the chart file with the number of
+                chartN = optSet.chartName[optSet.selectedChart]
+                # We retrieve the name of the chart we get the parameters from
+                if simulNb + startNb < 10:
+                    dstfile = "GEP_chart" + preTot + str(simulNb + startNb)
+                else:
+                    dstfile = "GEP_chart" + str(simulNb + startNb)
+                srcdir = folders.animatlab_result_dir
+                srcfile = chartFileName
+                """
+                comment1 = ""
+                copyRenameFilewithExt(srcdir, srcfile, chart_dstdir, dstfile,
+                                      ".txt", comment1, replace=1)
+                """
+                [err, mse, coactP, simSubNb, simulNb] = behav
+                # Here we read the values contained in the last simulation we've done
+                txtchart = readTabloTxt(srcdir, srcfile)
+                comment = "mse:{:.4f}; coactP:{:.4}".format(mse, coactP)
+                destfilename = dstfile + ".txt"
+                
+                savechartfileWithComment(destfilename, chart_dstdir,
+                                         txtchart, comment)
+                
+                win.lst_bestchart.append(dstfile)
+                
+                # ======================== saving  asim =======================
+                simN = os.path.splitext((os.path.split(model.asimFile)[-1]))[0]
+                if (simSubNb + 1) < 10:
+                    srcasim = simN + "-" + pre + str(simSubNb+1) + ".asim"
+                else:
+                    srcasim = simN + "-" + str(simSubNb + 1) + ".asim"
+                
+                dstasim = simN + "-" + str(simulNb + startNb)
+                srcasimdir = folders.animatlab_simFiles_dir
+                copyRenameFilewithExt(srcasimdir, srcasim, asim_dstdir, dstasim,
+                                      ".asim", "", replace=1)
+                
+                # ====================== Saving aproj ========================= 
+                [err, mse, coactP, simSubNb, simulNb] = behav
+                # print(simulNb, "-> rang dans le databhv:", end=' ')
+                print(simulNb + len(optSet.pairs))
+                
+                simSet = SimulationSet.SimulationSet()
+                simSet.samplePts = []
+                stimParName = optSet.stimParName
+                synParName = optSet.synParName
+                synNSParName = optSet.synNSParName
+                synFRParName = optSet.synFRParName
+                paramset = paramserie[simulNb]
+                [simSet, vals] = normToRealVal(paramset, optSet, simSet,
+                        stimParName, synParName, synNSParName, synFRParName)
+                
+                asimFileName = asim_dstdir + "/" + dstasim
+                aprojSaveDir = aproj_dstdir
+                typ = ""
+
+                aprojFicName = os.path.split(model.aprojFile)[-1]
+                name = os.path.splitext(aprojFicName)[0]
+                ext = os.path.splitext(aprojFicName)[1]
+                projficName = name + "_best" + procName + typ + ext
+                aprojFileName = os.path.join(aprojSaveDir, projficName)
+                
+                complete_name = actualiseSaveAprojFromAsimFile(optSet,
+                                                               asimFileName,
+                                                               aprojFileName,
+                                                               simSet=simSet,
+                                                               overwrite=0,
+                                                               createSimSet=0,
+                                                               affiche=0)
+
+                lst_simNb.append(simulNb)
+                lst_err.append(err)
+                win.lst_bestParNb.append(len(optSet.pairs) + simulNb)
+                win.lst_simNb = lst_simNb
+                win.lst_err = lst_err
+        # else this behav has already been saved to "tmpBestChart" folder
+        data_behav = []
+    # stop()
+    mse_coact = np.array(tab_mse)
+    return [mse_coact, simSetGlob, lst_err, tabBehavElts, lst_tab, lst_simNb]
+
 
 
 def runTrials(win, paramserie, paramserieSlices,

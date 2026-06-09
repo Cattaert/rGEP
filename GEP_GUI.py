@@ -108,6 +108,10 @@ modified September 04, 2025 (D. Cattaert):
 modified November 25, 2025 (D. Cattaert):
     Version with free timeStep. In initAnimatLab collecinterval modifications
     have been commented.
+modified June 09, 2026 (D. Cattaert):
+    To allow parallel processing of perturbatiuon procedure, a new method has
+    been written that uses a new procedure (runTrials_saveAll) from
+    optimization
 """
 
 import pyqtgraph as pg
@@ -205,6 +209,7 @@ from optimization import getInfoComputer
 from SaveInfoComputer import SetComputerInfo
 
 from optimization import runTrials
+from optimization import runTrials_saveAll
 
 from makeGraphs import graphfromchart
 
@@ -3151,6 +3156,111 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             fich.seek(0)
             fich.write(newtitre)
             fich.close()
+
+
+    def run_list_selected_param(self):
+        # self=MyWin.graph_settings.GUI_Gr_obj.mafen
+        animatsimdir = self.animatsimdir
+        optSet = self.optSet
+        animatsimdirName = os.path.split(animatsimdir)[1]
+        if animatsimdirName[:5] == 'trial':
+            rootdirtmp = os.path.split(animatsimdir)[0]
+            rootdir = os.path.split(rootdirtmp)[0]
+            rootDirName = os.path.split(rootdir)[-1]
+        animatLabV2ProgDir, nb_procs = getInfoComputer()
+        self.nb_procs = nb_procs    
+        nbrun = len(self.rg_bhv_selected)
+        org = self.getNbPacket(100, nbrun)
+        nbEpochParam, nbRunParam, paramserieSlicesAllEpochs = org
+        self.previousStartEval = 0
+
+        self.tabBehavElts = []
+        self.lst_varmse = []
+        select_pairs = []
+        select_bhv = []
+        lst_paramserie = []        
+        listpairs = []
+        for sel in self.rg_bhv_selected:
+            select_pairs.append(optSet.pairs[sel])
+            lst_paramserie.append(optSet.pairs[sel][0: self.nbpar])
+            select_bhv.append(optSet.behavs[sel])
+        selected_pairs = np.array(select_pairs)
+        self.selected_pairs = selected_pairs
+        selected_bhv = np.array(select_bhv)
+        self.selected_bhv = selected_bhv
+        lst_paramserie = np.array(lst_paramserie)
+        self.lst_paramserie = lst_paramserie
+        
+        bestchartList = []
+        besterrList = []
+        bestparamList = np.arange(len(self.rg_bhv_selected))
+        bestparamList = list(bestparamList)
+        destdir = self.newDestFolder
+        start = 0
+        # ========== prepares the folder of source directoty ==================
+# TODO : continuer
+        temp_aprojSaveDir = os.path.join(optSet.folders.animatlab_rootFolder,
+                                         "tmp_AprojFiles")
+        copyFileDir(animatsimdir, temp_aprojSaveDir, copy_dir=0)
+        # =============  Run each paramset individually  ======================
+        for epoch in range(nbEpochParam):
+            paramserieSlices = paramserieSlicesAllEpochs[epoch]
+            print(paramserieSlices)
+            procName = "GEP"
+            self.procName = procName
+            # paramserie = [lst_paramserie[epoch]]
+            paramserie = lst_paramserie
+            
+            # =================================================================
+            result = runTrials_saveAll(self, paramserie, paramserieSlices,
+                               destdir, startNb=start, savechart=1,
+                               procName="GEP",
+                               runType="save_all", randParEvol="")
+            # =================================================================
+            
+            self.result=result
+            mse_coact = result[0]
+            lst_err = result[2]
+            tabBehavElts = result[3]
+            for idx in range(nbRunParam[epoch]):
+                pair_param_mseCoact = np.concatenate([paramserie[idx],
+                                                      mse_coact[idx]])
+                behav = tabBehavElts[idx]
+                # print(idx, behav)
+                self.add_pair(pair_param_mseCoact, behav)
+                listpairs.append(pair_param_mseCoact)
+                self.tabBehavElts.append(behav)
+
+            # ====    creates a dataframe from tabBehavElts   ======
+            """
+            # ["mse", "coactpen", "startangle", "endangle", "oscil1",
+            #  "oscil2", "max_speed", "end_mvt2", "duree", "varmse"]
+            """
+            nptabBehavElts = np.array(tabBehavElts)
+            np_pairs = np.array(listpairs)
+            # win.plotBhvSet(nptabBehavElts, np_pairs, 0, nbRunParam[epoch])
+            for err in lst_err:
+                self.err.append(err)
+                     
+
+            start += len(mse_coact)
+            
+
+            for idx, chartName in enumerate(self.lst_bestchart):
+                bestchartList.append(chartName)
+                besterrList.append(self.err[idx])
+                bestparamList.append(self.lst_bestParNb[idx])
+                
+        self.newtabBehavElts = self.tabBehavElts   
+        self.bestchartList = bestchartList
+        print("===================================================")
+        print("    End of", len(self.newtabBehavElts), "perturbation runs")
+        print("===================================================")
+
+        # self.saves_newGEPdata(seedDirCreate=False)
+
+
+
 
     def run_selected_param(self):
         # self=MyWin.graph_settings.GUI_Gr_obj.mafen

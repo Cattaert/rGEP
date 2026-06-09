@@ -368,6 +368,10 @@ Modified May 24 2026 (D. Cattaert):
     running each perturbed model.The perturbation parameters are givent by the
     user. It is also possible to run a limited ârt of the original behavior
     domain.Once finished the original FinalModel files are restored.
+Modified June 09, 2026 (D. Cattaert):
+    Perturbation procedurehas been rewrittent to work in parallel mode.
+    GEP_GUI.py and optimization.py have been modified accordingly.
+    
 """
 import os
 from os import listdir
@@ -989,9 +993,9 @@ def includePerturbationInAsim(pertStart, pertDur, pertForce,
         rel.set("y", "0")
         rel.set("z", "0")
         
-        add("ForceX", pertForceTxt)
+        add("ForceX", "0")
         add("ForceY", "0")
-        add("ForceZ", "0")
+        add("ForceZ", pertForceTxt)
         for tag in ["TorqueX", "TorqueY", "TorqueZ"]:
             add(tag, "0")
         
@@ -1015,9 +1019,9 @@ def includePerturbationInAsim(pertStart, pertDur, pertForce,
                 stim.find("Name").text = "perturbation"
                 stim.find("StartTime").text = pertStartTxt
                 stim.find("EndTime").text = pertEndTxt
-                stim.find("ForceX").text = pertForceTxt
+                stim.find("ForceX").text = "0"
                 stim.find("ForceY").text = "0"
-                stim.find("ForceZ").text = "0"
+                stim.find("ForceZ").text = pertForceTxt
                 stim.find("TorqueX").text = "0"
                 stim.find("TorqueY").text = "0"
                 stim.find("TorqueZ").text = "0"
@@ -1102,9 +1106,9 @@ def includePerturbationinAproj(pertStart, pertDur, pertForce,
         add_attrib("PositionX", {"Value": "0", "Scale": "None", "Actual": "0"})
         add_attrib("PositionY", {"Value": "0", "Scale": "None", "Actual": "0"})
         add_attrib("PositionZ", {"Value": "0", "Scale": "None", "Actual": "0"})
-        add_attrib("ForceX", {"Value": pertForceTxt, "Scale": "None", "Actual": pertForceTxt})
+        add_attrib("ForceX", {"Value": "0", "Scale": "None", "Actual": "0"})
         add_attrib("ForceY", {"Value": "0", "Scale": "None", "Actual": "0"})
-        add_attrib("ForceZ", {"Value": "0", "Scale": "None", "Actual": "0"})
+        add_attrib("ForceZ", {"Value": pertForceTxt, "Scale": "None", "Actual": pertForceTxt})
         add_attrib("TorqueX", {"Value": "0", "Scale": "None", "Actual": "0"})
         add_attrib("TorqueY", {"Value": "0", "Scale": "None", "Actual": "0"})
         add_attrib("TorqueZ", {"Value": "0", "Scale": "None", "Actual": "0"})
@@ -1127,12 +1131,12 @@ def includePerturbationinAproj(pertStart, pertDur, pertForce,
                 stim.find("StartTime").set("Actual", pertStartTxt)
                 stim.find("EndTime").set("Value", pertEndTxt)
                 stim.find("EndTime").set("Actual", pertEndTxt)
-                stim.find("ForceX").set("Value", pertForceTxt)
-                stim.find("ForceX").set("Actual", pertForceTxt)
+                stim.find("ForceX").set("Value", "0")
+                stim.find("ForceX").set("Actual", "0")
                 stim.find("ForceY").set("Value", "0")
                 stim.find("ForceY").set("Actual", "0")
-                stim.find("ForceZ").set("Value", "0")
-                stim.find("ForceZ").set("Actual", "0")
+                stim.find("ForceZ").set("Value", pertForceTxt)
+                stim.find("ForceZ").set("Actual", pertForceTxt)
                 break
         aprojtree.write(aprojFile, encoding="utf-8", xml_declaration=True)
 
@@ -5010,6 +5014,7 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         on a behav space limits: endangle in [0, 120]; dur_mvt2 in [0.2, 1.4]
         Every 100 runs, the number of cases in which at least one behavior was
         found are counted. A plot of these numbers along time is then built.
+        self=MyWin.makeGEPMetrics
         """
 
         print("build a grid on behaviour space to count nb of occupied boxes ")
@@ -5052,8 +5057,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
             ordTyp = "maxSpeed"
         strGEPdataName = self.GUI_Gr_obj.prevListGEPFiles[0]
         strGEPdataName = os.path.splitext(strGEPdataName)[0]
-        baseName = "{}_{}_{}".format(strGEPdataName[:], ordTyp,
-                                     "Grid_Metrics")
+        baseName = "{}_{}_{}_{}".format(strGEPdataName[:], ordTyp,
+                                        "Grid_Metrics", str(len(df)))
         completeName = os.path.join(graph_path, baseName + '.txt')
         nBhvOK = 0
         if not os.path.exists(completeName):
@@ -5207,6 +5212,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
                             span = "spanlist"
                         else:
                             span = int(tabnewspan[idx])
+                else:
+                    span = tabnewspan[idx]
                 new_typ = tabnewstart_typ[idx]
                 # print(new_typ)
                 # lighten = 0.5 + (float(span)/100) * 5
@@ -5257,8 +5264,11 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
         elif behav_col[1] == 6:
             ordTyp = "maxSpeed"
 
-        baseName = "{}_{}_{}".format(strGEPdataName[:], ordTyp, "Grid Metrics")
-        titre = get_titre(path, baseName)
+        baseName0 = "{}_{}_{}_{}".format(strGEPdataName[:], ordTyp, 
+                                        "Grid Metrics", str(len(df_bhvremain)))
+        baseName1 = "{}_{}_{}".format(strGEPdataName[:], ordTyp, 
+                                        "Grid Metrics")
+        titre = get_titre(path, baseName0)
 
         max_score = score_evol_df[:]["score"].max()
         max_density = score_evol_df[:]["density"].max()
@@ -5423,8 +5433,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
             axpar[pargr].grid(linestyle='-', linewidth='0.5', color='gray')
         # =====================================================================
         """
-        plt.savefig(os.path.join(graph_path, baseName + '.pdf'))
-        plt.savefig(os.path.join(graph_path, baseName + '.eps'))
+        plt.savefig(os.path.join(graph_path, baseName0 + '.pdf'))
+        plt.savefig(os.path.join(graph_path, baseName0 + '.eps'))
         plt.show()
 
     def rand_goal_method(self):
@@ -5514,7 +5524,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         dicValues = set_values_in_list(dicValues, selected, typ, text)
         self.pertStart = float(dicValues["perturb_onset"])
         self.pertDur = float(dicValues["perturb_duration"])
-        self.pertForce = int(dicValues["pert_strength"])
+        self.pertForce = float(dicValues["pert_strength"])
         """
         self.runpertName = "runpertSt%3.2fDur%3.2fF%3d-" % (self.pertStart,
                                                            self.pertDur,
@@ -5886,8 +5896,11 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         gepdatadir = new_run_dir + "/GEPdata"
         if not os.path.exists(gepdatadir):
             os.makedirs(gepdatadir)
-        # ===================  run selected paramsets ====================
-        self.GUI_Gr_obj.mafen.run_selected_param()
+            
+        # ===================  run selected paramsets =========================
+        self.GUI_Gr_obj.mafen.run_list_selected_param()
+        # ====================================================================
+
         """
         self=MyWin.pert_settings
         for idOK in range(10):
