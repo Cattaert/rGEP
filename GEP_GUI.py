@@ -112,6 +112,11 @@ modified June 09, 2026 (D. Cattaert):
     To allow parallel processing of perturbatiuon procedure, a new method has
     been written that uses a new procedure (runTrials_saveAll) from
     optimization
+modified June 10, 2026 (D.Cattaert):
+    method "saves_newGEPdata()" modified to include a new parameter in the call
+    saveGrFromChart=False. This allows to choose to build graphs or not in the
+    class "Perturbation_Setting0" in makeGraphs.py in the method used to run
+    selected behaviors (run_selected_bhv).
 """
 
 import pyqtgraph as pg
@@ -3443,7 +3448,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
                 self.reset_span()
                 self.spanlistfound = False
 
-    def saves_newGEPdata(self, seedDirCreate=False):
+    def saves_newGEPdata(self, seedDirCreate=False, saveGrFromChart=False):
         nbrun = len(self.rg_bhv_selected)
         org = self.getNbPacket(1, nbrun)
         nbEpochParam, nbRunParam, paramserieSlicesAllEpochs = org
@@ -3510,16 +3515,17 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         resultdir = os.path.join(self.newDestFolder, "ResultFiles")
         templateFileName = os.path.join(resultdir, "template.txt")
         chartdir = os.path.join(self.newDestFolder, "GEPChartFiles")
-        for idx in range(len(df_bhvremain)):
-            print(idx)
-            if idx < 10:
-                zero = "0"
-            else:
-                zero = ""
-            dstfile = chart_glob_name + zero + str(idx)
-            chartName = dstfile + ".txt"
-            self.checkChartComment(chartdir, chartName, idx)
-            graphfromchart(optSet, chartdir, chartName, templateFileName)
+        if saveGrFromChart:
+            for idx in range(len(df_bhvremain)):
+                print(idx)
+                if idx < 10:
+                    zero = "0"
+                else:
+                    zero = ""
+                dstfile = chart_glob_name + zero + str(idx)
+                chartName = dstfile + ".txt"
+                self.checkChartComment(chartdir, chartName, idx)
+                graphfromchart(optSet, chartdir, chartName, templateFileName)
 
         # =================  creates and saves datastructure  =================
         datastructure = {}

@@ -371,7 +371,11 @@ Modified May 24 2026 (D. Cattaert):
 Modified June 09, 2026 (D. Cattaert):
     Perturbation procedurehas been rewrittent to work in parallel mode.
     GEP_GUI.py and optimization.py have been modified accordingly.
-    
+modified June 10, 2026 (D.Cattaert):
+    method "saves_newGEPdata()" (from GEP_GUI.py) modified to include a new
+    parameter in the call (saveGrFromChart=False). This new parametr allows to
+    choose to build graphs or not in the class "Perturbation_Setting0" in the
+    method used to run selected behaviors (run_selected_bhv).
 """
 import os
 from os import listdir
@@ -5266,8 +5270,8 @@ class GEPGraphsMetrics(QtWidgets.QDialog):   # top-level widget to hold everythi
 
         baseName0 = "{}_{}_{}_{}".format(strGEPdataName[:], ordTyp, 
                                         "Grid Metrics", str(len(df_bhvremain)))
-        baseName1 = "{}_{}_{}".format(strGEPdataName[:], ordTyp, 
-                                        "Grid Metrics")
+        #baseName1 = "{}_{}_{}".format(strGEPdataName[:], ordTyp, 
+        #                                "Grid Metrics")
         titre = get_titre(path, baseName0)
 
         max_score = score_evol_df[:]["score"].max()
@@ -5783,35 +5787,34 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         df_glob = self.GUI_Gr_obj.df_glob
         NbSelectedBhv = len(df_glob)
         print("{} selected bhv".format(NbSelectedBhv))
-        """
-        msg = "Save restrained dataframes with graphs?"
-        msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
-        ret = MessageBox(None, msg, msg2, 3)
-        """
-        ret = 6
         animatsimdir = self.GUI_Gr_obj.animatsimdir
         print(animatsimdir)
         new_run_dir = self.new_run_dir
-        print(ret)
-        if ret == 2:
-            print("ESC")
-        elif ret == 6:
-            print("YES --> Saves the bhv, par dataframes of selected data")
-        elif ret == 7:
-            print("NO: --> Do Not Save restrained dataframes")
-        if ret == 6:
-            self.new_run_dir = new_run_dir
-            self.GUI_Gr_obj.new_run_dir = new_run_dir
-            if not os.path.exists(new_run_dir):
-                os.makedirs(new_run_dir)
-            file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
-            self.run_selected_bhv(file_name)
+        # stop()
+        self.new_run_dir = new_run_dir
+        self.GUI_Gr_obj.new_run_dir = new_run_dir
+        if not os.path.exists(new_run_dir):
+            os.makedirs(new_run_dir)
+        file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
+        msg = "Build & Save all graphs from chart?"
+        msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+        ret2 = MessageBox(None, msg, msg2, 3)
+        if ret2 == 2:
+            print('ESC')
+        elif ret2 == 6:
+            print("YES --> Builds and Saves all graphs from charts")
+        elif ret2 == 7:
+            print("NO: --> Do Not build any graph")
+        if ret2 == 6:
+            self.saveGraphs = False
+        self.run_selected_bhv(file_name, saveGraphs=self.saveGraphs)
 
-    def run_selected_bhv(self, file_name):
+    def run_selected_bhv(self, file_name, saveGraphs=False):
         # self=MyWin.graph_settings
         optSet = self.GUI_Gr_obj.optSet
         gravity = readGravityfromAsim(optSet.model)
         optSet.gravity = gravity
+        self.saveGraphs = saveGraphs
 
         # ============== get df_parremain from GUI_graph =================
         # the two following commented lines are from restrain_to_bhv_set()
@@ -5926,25 +5929,27 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         self.GUI_Gr_obj.mafen.seeds_selected = seeds_selected
         self.GUI_Gr_obj.mafen.optSet.spanStim = 5
         self.GUI_Gr_obj.mafen.optSet.spanSyn = 5
-        self.GUI_Gr_obj.mafen.saves_newGEPdata(seedDirCreate=False)
+        self.GUI_Gr_obj.mafen.saves_newGEPdata(seedDirCreate=False,
+                                               saveGrFromChart=saveGraphs)
         
-        for idx in range(len(df_bhvremain)):
-            print(idx)
-            if idx < 10:
-                zero = "0"
-            else:
-                zero = ""
-            dstfile = chart_glob_name + zero + str(idx)
-            chartName = dstfile + ".txt"
-            self.GUI_Gr_obj.mafen.checkChartComment(chartdir, chartName, idx)
-            # graphfromchart(optSet, chartdir, chartName, templateFileName)
-            chartFullName = chartdir + "/" + chartName
-            try:
-                testVarMsePlot(optSet, chartFullName, interval=1./6)
-            except Exception as e:
-                None
-                if verbose > 2:
-                    print(e)
+        if saveGraphs:
+            for idx in range(len(df_bhvremain)):
+                print(idx)
+                if idx < 10:
+                    zero = "0"
+                else:
+                    zero = ""
+                dstfile = chart_glob_name + zero + str(idx)
+                chartName = dstfile + ".txt"
+                self.GUI_Gr_obj.mafen.checkChartComment(chartdir,chartName,idx)
+                # graphfromchart(optSet, chartdir, chartName, templateFileName)
+                chartFullName = chartdir + "/" + chartName
+                try:
+                    testVarMsePlot(optSet, chartFullName, interval=1./6)
+                except Exception as e:
+                    None
+                    if verbose > 2:
+                        print(e)
                     
         # ======= replaces unshocked asim and aproj by shoked ones ============
         list_ext = [".aproj", ".asim", ".aform"]        
