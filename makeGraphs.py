@@ -5796,17 +5796,21 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         if not os.path.exists(new_run_dir):
             os.makedirs(new_run_dir)
         file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
+        
+        self.saveGraphs = False
         msg = "Build & Save all graphs from chart?"
         msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
         ret2 = MessageBox(None, msg, msg2, 3)
         if ret2 == 2:
             print('ESC')
         elif ret2 == 6:
+            self.saveGraphs = True
             print("YES --> Builds and Saves all graphs from charts")
         elif ret2 == 7:
-            print("NO: --> Do Not build any graph")
-        if ret2 == 6:
             self.saveGraphs = False
+            print("NO: --> Do Not build any graph")
+      
+            
         self.run_selected_bhv(file_name, saveGraphs=self.saveGraphs)
 
     def run_selected_bhv(self, file_name, saveGraphs=False):
@@ -5951,7 +5955,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
                     if verbose > 2:
                         print(e)
                     
-        # ======= replaces unshocked asim and aproj by shoked ones ============
+        # === replaces unshocked asim and aproj by shoked ones in pert dir ====
         list_ext = [".aproj", ".asim", ".aform"]        
         pert_FinalModel_dir = animatsimdir + "/FinalModel"            
         aprojSaveDir = new_run_dir + "/AprojFiles"
