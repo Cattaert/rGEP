@@ -5584,7 +5584,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
                       if os.path.isdir(graph_path + "/" + sd)]
         ix = 0
         for sdir in lst_subdir:
-            if sdir[:8] == self.runpertName:
+            if sdir[:len(self.runpertName)] == self.runpertName:
                 ix += 1
         newrundirname = self.runpertName + '{0:d}'.format(ix)
         self.new_run_dir = graph_path + "/" + newrundirname
