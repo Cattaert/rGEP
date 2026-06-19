@@ -376,6 +376,9 @@ modified June 10, 2026 (D.Cattaert):
     parameter in the call (saveGrFromChart=False). This new parametr allows to
     choose to build graphs or not in the class "Perturbation_Setting0" in the
     method used to run selected behaviors (run_selected_bhv).
+Modified June19, 2026 (D. Cattaert):
+    It is now possible to choose not to save .aproj and/or .asim files.
+    New dialog boxes have been added for the user to choose what to save.
 """
 import os
 from os import listdir
@@ -446,6 +449,7 @@ from DialogChoose_in_List import choose_one_element_in_list
 from DialogChoose_in_List import choose_elements_in_list
 from DialogChoose_in_List import set_values_in_list
 from DialogChoose_in_List import Enter_Values
+from DialogChoose_in_List import InfoWindow
 
 from optimization import loadParams
 from animatlabOptimSetting import OptimizeSimSettings
@@ -5795,8 +5799,12 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         self.GUI_Gr_obj.new_run_dir = new_run_dir
         if not os.path.exists(new_run_dir):
             os.makedirs(new_run_dir)
-        file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
-        
+        # =====================================================================
+        # save_bhvpar_df_to_csv open a dialogbox only if showdialog=True
+        file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv(showdialog=False,
+                                                          savecsv=True)
+        # =====================================================================
+        go_ON = True
         self.saveGraphs = False
         msg = "Build & Save all graphs from chart?"
         msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
@@ -5809,9 +5817,59 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         elif ret2 == 7:
             self.saveGraphs = False
             print("NO: --> Do Not build any graph")
-      
+        
+        
+        self.saveAsim = False
+        msg = "Save all .asim files?"
+        msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+        ret2 = MessageBox(None, msg, msg2, 3)
+        if ret2 == 2:
+            print('ESC')
+        elif ret2 == 6:
+            self.saveAsim = True
+            print("YES --> Builds and Saves all .asim with pert")
+        elif ret2 == 7:
+            self.saveAsim = False
+            print("NO: --> Do Not save any .asim")
+        
+        self.saveAproj = False
+        msg = "Save all .aproj files?"
+        msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+        ret2 = MessageBox(None, msg, msg2, 3)
+        if ret2 == 2:
+            go_ON = False
+            print('ESC')
+        elif ret2 == 6:
+            self.saveAproj = True
+            print("YES --> Builds and Saves all .aproj with pert")
+        elif ret2 == 7:
+            self.saveAproj = False
+            print("NO: --> Do Not build any .aproj")
+
+        if self.saveAsim == False and self.saveAproj == True:
+            self.saveAproj = False
+            title = "                *** ATTENTION ***                   "
+            info = ".aproj cannot be saved if .asim files are not saved\n"
+            message =  "Because .asim will not be saved.\n"
+            message += "it is not possible to save .aproj files "
+            message += "because they are created from the .asim files "
+            InfoWindow(title, info, message=message)
             
-        self.run_selected_bhv(file_name, saveGraphs=self.saveGraphs)
+            print("{} selected bhv".format(NbSelectedBhv))
+            msg = "Save both .asim AND .aproj?"
+            msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+            ret3 = MessageBox(None, msg, msg2, 3)
+            if ret3 == 2:
+                print('ESC')
+            elif ret3 == 6:
+                self.saveAproj = True
+                self.saveAsim = True
+                print("YES --> Saves both .asim and .aproj with pert")
+            elif ret3 == 7:
+                self.saveAproj = False
+                self.saveAsim = False
+        if go_ON:      
+            self.run_selected_bhv(file_name, saveGraphs=self.saveGraphs)
 
     def run_selected_bhv(self, file_name, saveGraphs=False):
         # self=MyWin.graph_settings
@@ -5859,22 +5917,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         # ======== create new_run_dir folder with incremental name ============
         animatsimdir = self.GUI_Gr_obj.animatsimdir
         print(animatsimdir)
-        """
-        graph_path = self.GUI_Gr_obj.graph_path
-        graph_path = graph_path.replace("\\", "/")
-        listdir = os.listdir(graph_path)
-        lst_subdir = [sd for sd in listdir
-                      if os.path.isdir(graph_path + "/" + sd)]
-        ix = 0
-        for sdir in lst_subdir:
-            if sdir[:4] == "run-":
-                ix += 1
-        newrundirname = "run" + '-{0:d}'.format(ix)
-        new_run_dir = graph_path + "/" + newrundirname
-        self.GUI_Gr_obj.new_run_dir = new_run_dir
-        if not os.path.exists(new_run_dir):
-            os.makedirs(new_run_dir)
-        """
+
         new_run_dir = self.new_run_dir
         ficname = "file_name.txt"
         complete_fname = new_run_dir + "/" + ficname
@@ -5905,7 +5948,8 @@ class Perturbation_Setting0(QtWidgets.QDialog):
             os.makedirs(gepdatadir)
             
         # ===================  run selected paramsets =========================
-        self.GUI_Gr_obj.mafen.run_list_selected_param()
+        self.GUI_Gr_obj.mafen.run_list_selected_param(saveAproj=self.saveAproj,
+                                                      saveAsim=self.saveAsim)
         # ====================================================================
 
         """
@@ -5936,6 +5980,19 @@ class Perturbation_Setting0(QtWidgets.QDialog):
         self.GUI_Gr_obj.mafen.saves_newGEPdata(seedDirCreate=False,
                                                saveGrFromChart=saveGraphs)
         
+        # === replaces unshocked asim and aproj by shoked ones in pert dir ====
+        list_ext = [".aproj", ".asim", ".aform"]        
+        pert_FinalModel_dir = animatsimdir + "/FinalModel"            
+        aprojSaveDir = new_run_dir + "/AprojFiles"
+        copyFileDir_ext(pert_FinalModel_dir, aprojSaveDir,
+                        list_ext, copy_dir=0)
+        copyFileDir_ext(pert_FinalModel_dir, new_run_dir,
+                        list_ext, copy_dir=0)
+        originalFinalDir = animatsimdir  + "/originalFinalModel"            
+        # ======= copy back original animattsimdir aproj and asim files ======       
+        copyFileDir(originalFinalDir, animatsimdir + "/FinalModel", copy_dir=0)
+        # ====================================================================
+        
         if saveGraphs:
             for idx in range(len(df_bhvremain)):
                 print(idx)
@@ -5955,18 +6012,7 @@ class Perturbation_Setting0(QtWidgets.QDialog):
                     if verbose > 2:
                         print(e)
                     
-        # === replaces unshocked asim and aproj by shoked ones in pert dir ====
-        list_ext = [".aproj", ".asim", ".aform"]        
-        pert_FinalModel_dir = animatsimdir + "/FinalModel"            
-        aprojSaveDir = new_run_dir + "/AprojFiles"
-        copyFileDir_ext(pert_FinalModel_dir, aprojSaveDir,
-                        list_ext, copy_dir=0)
-        copyFileDir_ext(pert_FinalModel_dir, new_run_dir,
-                        list_ext, copy_dir=0)
-        originalFinalDir = animatsimdir  + "/originalFinalModel"            
-        # ======= copy back original animattsimdir aproj and asim files ======       
-        copyFileDir(originalFinalDir, animatsimdir + "/FinalModel", copy_dir=0)
-        # ====================================================================
+        
 
     def closeIt(self):
         """
@@ -6326,11 +6372,13 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         """
         df_glob = self.GUI_Gr_obj.df_glob
         NbSelectedBhv = len(df_glob)
+        """
         print("{} selected bhv".format(NbSelectedBhv))
         msg = "Save restrained dataframes with graphs?"
         msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
         ret = MessageBox(None, msg, msg2, 3)
-
+        ret = 6
+        """
         animatsimdir = self.GUI_Gr_obj.animatsimdir
         print(animatsimdir)
         graph_path = self.GUI_Gr_obj.graph_path
@@ -6344,7 +6392,7 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
                 ix += 1
         newrundirname = "run" + '-{0:d}'.format(ix)
         new_run_dir = graph_path + "/" + newrundirname
-        
+        """
         print(ret)
         if ret == 2:
             print("ESC")
@@ -6353,12 +6401,13 @@ class Graph_Setting(QtWidgets.QDialog):   # top-level widget to hold everything
         elif ret == 7:
             print("NO: --> Do Not Save restrained dataframes")
         if ret == 6:
-            self.new_run_dir = new_run_dir
-            self.GUI_Gr_obj.new_run_dir = new_run_dir
-            if not os.path.exists(new_run_dir):
-                os.makedirs(new_run_dir)
-            file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
-            self.run_selected_bhv(file_name)
+        """
+        self.new_run_dir = new_run_dir
+        self.GUI_Gr_obj.new_run_dir = new_run_dir
+        if not os.path.exists(new_run_dir):
+            os.makedirs(new_run_dir)
+        file_name = self.GUI_Gr_obj.save_bhvpar_df_to_csv()
+        self.run_selected_bhv(file_name)
 
     def run_selected_bhv(self, file_name):
         """
@@ -7780,7 +7829,7 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                   bhv_xmin, bhv_xmax, bhv_ymin, bhv_ymax,
                                   auto=True, hide=True)
 
-    def save_bhvpar_df_to_csv(self):
+    def save_bhvpar_df_to_csv(self, showdialog=True, savecsv=True):
         """
         """
         NbSelectedBhv = len(self.mafen.source_df_bhvremain)
@@ -7807,18 +7856,20 @@ class GUI_Graph(QtWidgets.QMainWindow, Ui_GrChart):
                                                   self.bhv_ymax)
             file_name = "{}_bhv{}".format(str_bhvSet, NbSelectedBhv)
             ret = 7
-
-            msg = "Save restrained dataframes?"
-            msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
-            ret = MessageBox(None, msg, msg2, 3)
-            print(ret)
-            if ret == 2:
-                print("ESC")
-            elif ret == 6:
-                print("YES --> Saves the bhv, par dataframes of selected data")
-            elif ret == 7:
-                print("NO: --> Do Not Save restrained dataframes")
-            if ret == 6:
+            if showdialog:
+                msg = "Save restrained dataframes?"
+                msg2 = "New selection contains {} bhvs".format(NbSelectedBhv)
+                ret = MessageBox(None, msg, msg2, 3)
+                print(ret)
+                if ret == 2:
+                    print("ESC")
+                elif ret == 6:
+                    print("YES --> Saves the bhv, par dataframes of selected data")
+                elif ret == 7:
+                    print("NO: --> Do Not Save restrained dataframes")
+                if ret == 6:
+                    savecsv = True
+            if savecsv == True:   
                 file_name = "{}_bhv{}".format(str_bhvSet, NbSelectedBhv)
                 save_df_to_csv(self.mafen.source_df_bhvremain, new_run_dir,
                                file_name, typ='bhv')
