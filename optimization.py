@@ -5055,8 +5055,9 @@ def getBestResults(newinfound, minErr, err, mse, coactpenality, idx, deb,
 
 
 
-def runTrials_saveAll(win, paramserie, paramserieSlices, destdir, startNb=0,
-              savechart=0, procName="GEP",
+def runTrials_saveAll(win, paramserie, paramserieSlices, destdir,
+              saveAproj=True, saveAsim=True,        
+              startNb=0,savechart=0, procName="GEP",
               runType="rdparam", randParEvol=""):
     """
     Function that runs a series of AnimatLab simulations defined in paramserie
@@ -5287,50 +5288,52 @@ def runTrials_saveAll(win, paramserie, paramserieSlices, destdir, startNb=0,
                 
                 win.lst_bestchart.append(dstfile)
                 
-                # ======================== saving  asim =======================
-                simN = os.path.splitext((os.path.split(model.asimFile)[-1]))[0]
-                if (simSubNb + 1) < 10:
-                    srcasim = simN + "-" + pre + str(simSubNb+1) + ".asim"
-                else:
-                    srcasim = simN + "-" + str(simSubNb + 1) + ".asim"
+                if saveAsim:
+                    # ======================== saving  asim =======================
+                    simN = os.path.splitext((os.path.split(model.asimFile)[-1]))[0]
+                    if (simSubNb + 1) < 10:
+                        srcasim = simN + "-" + pre + str(simSubNb+1) + ".asim"
+                    else:
+                        srcasim = simN + "-" + str(simSubNb + 1) + ".asim"
+                    
+                    dstasim = simN + "-" + str(simulNb + startNb)
+                    srcasimdir = folders.animatlab_simFiles_dir
+                    copyRenameFilewithExt(srcasimdir, srcasim, asim_dstdir, dstasim,
+                                          ".asim", "", replace=1)
                 
-                dstasim = simN + "-" + str(simulNb + startNb)
-                srcasimdir = folders.animatlab_simFiles_dir
-                copyRenameFilewithExt(srcasimdir, srcasim, asim_dstdir, dstasim,
-                                      ".asim", "", replace=1)
-                
-                # ====================== Saving aproj ========================= 
-                [err, mse, coactP, simSubNb, simulNb] = behav
-                # print(simulNb, "-> rang dans le databhv:", end=' ')
-                print(simulNb + len(optSet.pairs))
-                
-                simSet = SimulationSet.SimulationSet()
-                simSet.samplePts = []
-                stimParName = optSet.stimParName
-                synParName = optSet.synParName
-                synNSParName = optSet.synNSParName
-                synFRParName = optSet.synFRParName
-                paramset = paramserie[simulNb]
-                [simSet, vals] = normToRealVal(paramset, optSet, simSet,
-                        stimParName, synParName, synNSParName, synFRParName)
-                
-                asimFileName = asim_dstdir + "/" + dstasim
-                aprojSaveDir = aproj_dstdir
-                typ = ""
-
-                aprojFicName = os.path.split(model.aprojFile)[-1]
-                name = os.path.splitext(aprojFicName)[0]
-                ext = os.path.splitext(aprojFicName)[1]
-                projficName = name + "_best" + procName + typ + ext
-                aprojFileName = os.path.join(aprojSaveDir, projficName)
-                
-                complete_name = actualiseSaveAprojFromAsimFile(optSet,
-                                                               asimFileName,
-                                                               aprojFileName,
-                                                               simSet=simSet,
-                                                               overwrite=0,
-                                                               createSimSet=0,
-                                                               affiche=0)
+                if saveAproj:
+                    # ====================== Saving aproj ========================= 
+                    [err, mse, coactP, simSubNb, simulNb] = behav
+                    # print(simulNb, "-> rang dans le databhv:", end=' ')
+                    print(simulNb + len(optSet.pairs))
+                    
+                    simSet = SimulationSet.SimulationSet()
+                    simSet.samplePts = []
+                    stimParName = optSet.stimParName
+                    synParName = optSet.synParName
+                    synNSParName = optSet.synNSParName
+                    synFRParName = optSet.synFRParName
+                    paramset = paramserie[simulNb]
+                    [simSet, vals] = normToRealVal(paramset, optSet, simSet,
+                            stimParName, synParName, synNSParName, synFRParName)
+                    
+                    asimFileName = asim_dstdir + "/" + dstasim
+                    aprojSaveDir = aproj_dstdir
+                    typ = ""
+    
+                    aprojFicName = os.path.split(model.aprojFile)[-1]
+                    name = os.path.splitext(aprojFicName)[0]
+                    ext = os.path.splitext(aprojFicName)[1]
+                    projficName = name + "_best" + procName + typ + ext
+                    aprojFileName = os.path.join(aprojSaveDir, projficName)
+                    
+                    complete_name = actualiseSaveAprojFromAsimFile(optSet,
+                                                                   asimFileName,
+                                                                   aprojFileName,
+                                                                   simSet=simSet,
+                                                                   overwrite=0,
+                                                                   createSimSet=0,
+                                                                   affiche=0)
 
                 lst_simNb.append(simulNb)
                 lst_err.append(err)

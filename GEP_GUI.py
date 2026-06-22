@@ -3163,7 +3163,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             fich.close()
 
 
-    def run_list_selected_param(self):
+    def run_list_selected_param(self, saveAproj=True, saveAsim=True):
         # self=MyWin.graph_settings.GUI_Gr_obj.mafen
         animatsimdir = self.animatsimdir
         optSet = self.optSet
@@ -3218,9 +3218,11 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             
             # =================================================================
             result = runTrials_saveAll(self, paramserie, paramserieSlices,
-                               destdir, startNb=start, savechart=1,
-                               procName="GEP",
-                               runType="save_all", randParEvol="")
+                                destdir, 
+                                saveAproj=saveAproj, saveAsim=saveAsim,
+                                startNb=start, savechart=1,
+                                procName="GEP",
+                                runType="save_all", randParEvol="")
             # =================================================================
             
             self.result=result
