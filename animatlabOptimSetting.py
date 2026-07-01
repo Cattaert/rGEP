@@ -21,6 +21,13 @@ modified September 04, 2025 (D. Cattaert):
     win.errThr and win.coactThr can be changed in the GUI.
     These two values are incorporated in datastructure (conditons' last list')
     and saved in GEPdata00.par at each extend and fill.
+modified July 01, 2026 (D. Cattaert):
+    The object "OptimizeSimSettings" has been improved by adding a new 
+    element in other_constraints : start_angle. This allow to create a
+    gradient for optimization methods, when movements that should start at a
+    given angle (for example 0 degrees) starts from another angle. The
+    penality is proportional to the difference between the reference
+    startangle and the start angle of a given movemenent.
 """
 
 import random
@@ -375,6 +382,7 @@ class OptimizeSimSettings():
             self.neuronFRNames.append(self.tab_neuronsFR[i][0])
         self.other_constraints = {'max_endangle': 115,
                                   'min_endangle' : 10,
+                                  "start_angle" : 0,
                                   'max_endMN_pot': -0.061}
         self.otherconstraints_names = ['max_endangle', 'min_endangle',
                                        'max_endMN_pot']

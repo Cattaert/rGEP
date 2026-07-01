@@ -155,10 +155,25 @@ modified September 04, 2025 (D. Cattaert):
         1_CMAes_IDXXXX_span100_errT12.0coT0.6
         1_VSCD_IDXXXX_span100_errT12.0coT0.6
         2_rGEP_IDXXXX_seeds00_span0.5_errT12.0coT0.6 
+Modified July 1, 2026 (D. Cattaert):
+    Procedures added to execute runscripts from 'buildontrolScriptGetSeeds.py".
+    Procedure "setsSeedsSearch()" reads from the workDir_animatlab temporary
+    directory, the file GEPdata00bhv.txt (in GEPdata subDir) and builds a
+    dataframe (df_bhvremain) made of of elements with a varmse< to a threshold
+    value (errThr) and a coactpen < to a threshold value (coactThr). Then build
+    also a dataFrame from GEPdata00.txt and select the rows in the list of the
+    bdf_hvremain. Creates all elements needed to run:
+        win.run_list_selected_param(saveAproj=True, saveAsim=True)
+    and saves the corresponding seed directory : 0_IDXXXNGC_autoSeeds00
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
 from pyqtgraph.Qt import QtWidgets
+
+import class_animatLabModel as AnimatLabModel
+import class_animatLabSimulationRunner as AnimatLabSimRunner
+# import class_simulationSet as SimulationSet
+import class_projectManager as ProjectManager
 
 from GEP_GUI import MaFenetre, initAnimatLab
 
@@ -167,11 +182,18 @@ import shutil
 import numpy as np
 import copy
 
+import pandas as pd
+
+from GUI_AnimatPar import saveAnimatLabSimDir
+
 from optimization import copyFile
 from optimization import copyFileDir
 from optimization import copyRenameFilewithExt
 from optimization import copyDirectory
+from optimization import copyFileDir_ext
+from optimization import copyFileWithExt
 from optimization import getValuesFromText
+from optimization import cleanChartsFromNewResultDir
 from optimization import calculateMvtdurFromMax_Speed
 from optimization import load_datastructure
 from optimization import readGravity
@@ -186,6 +208,10 @@ from GUI_AnimatPar import readColIntervalFromAform
 from GUI_AnimatPar import changeCollIntervalAform
 from GUI_AnimatPar import readColIntervalFromAsim
 from GUI_AnimatPar import changeCollIntervalAsim
+
+from makeGraphs import GUI_Graph
+#from makeGraphs import Perturbation_Setting0
+from makeGraphs import GEPGraphsMetrics
 
 global verbose
 verbose = 1
@@ -464,6 +490,123 @@ def set_span_par_name(valPar):
                                for nam in win.xparName]
 
 
+def setsSeedsSearch(tabscript, line):
+    """
+    In : tabscript : list containing the couples
+        ("the_name_of_the_parameter=its_value") as exctracted in the function
+        ReadScriptFile
+        line : The number of the line we seek to read the parameters from.
+    This procedure gets the 30 best bhv from the given GEPdata00bhv.txt and
+        creates a autoSeeds subdirectory of the gepDatadirectory and a root
+       seed directry: "0_IDXXXNGC_autoSeeds0Y" 
+    """
+    bhv_names = win.bhv_names
+    par_names = win.xparName
+    bhv_col = copy.deepcopy(bhv_names)
+    bhv_col.append("rg")
+    par_col = copy.deepcopy(par_names)
+    par_col.append("mse")
+    par_col.append("coactpen")
+    par_col.append("rg")
+    for idx, val in enumerate(tabscript[line][1:]):
+        nomPar, valPar = extractParam(val)
+        print(idx, nomPar, valPar)
+        
+        
+        dirGEPdata = os.path.join(animatsimdir, "GEPdata")
+        GEPdata00parFile = os.path.join(dirGEPdata, "GEPdata00.txt")
+        GEPdata00bhvFile = os.path.join(dirGEPdata, "GEPdata00bhv.txt")
+        df_bhv = pd.read_csv(GEPdata00bhvFile, sep="\t", header=None,
+                             names=bhv_col)
+        df_bestbhv = copy.deepcopy(df_bhv)
+        
+        # =====================================================================
+        # Alternative to get all varmse<=1 + complement if less tha 30
+        # =====================================================================
+        df_startangleOK = df_bestbhv[df_bestbhv["startangle"] <=0.1]
+        df_endangleOK = df_startangleOK[df_startangleOK["endangle"]>10]
+        df_bhv_underUn = df_endangleOK[df_endangleOK["varmse"] <=1]
+        n_manquantes = max(0, 30 - len(df_bhv_underUn))
+        df_complement = (
+            df_endangleOK[df_endangleOK["varmse"] > 1]
+            .sort_values("varmse", ascending=True)
+            .head(n_manquantes)
+            )
+        df_bestbhv = pd.concat([df_bhv_underUn, df_complement],
+                             ignore_index=True)
+        
+        if n_manquantes > 0:
+            rg_bestbhv = df_bestbhv["rg"].head(30).tolist()
+        else:
+            rg_bestbhv = df_bestbhv["rg"].tolist()
+        
+        lst_bestvarmse = df_bestbhv["varmse"].tolist()
+        seeds_selected = rg_bestbhv
+        
+        df_bhvremain = copy.deepcopy(df_bestbhv)
+        # df_bhvremain.reset_index(drop=True, inplace=True)
+        win.df_bhvremain = df_bhvremain.set_index("rg", drop=False)
+        
+        df_par = pd.read_csv(GEPdata00parFile, sep="\t", header=None,
+                                   names=par_col)
+        df_bestpar = copy.deepcopy(df_par)
+        df_bestpar = df_bestpar.iloc[rg_bestbhv]
+        # df_bestpar.reset_index(drop=True, inplace=True)
+        win.df_parremain = copy.deepcopy(df_bestpar)
+        # win.df_parremain["rg"] = win.df_parremain.index
+        nbpar = win.nbpar
+
+        # colNames = df_par.columns[1:df_par.shape[1]-1].tolist()
+        # pairs = df_par.iloc[:, :df_par.shape[1]-1]
+        df_pairs = df_par.iloc[:, :-1]
+        pairs = np.array(df_pairs)
+        optSet.pairs = pairs
+        df_behavs = df_bhv.iloc[:, :-1]
+        behavs = np.array(df_behavs)
+        optSet.behavs = behavs
+        win.optSet = optSet
+    
+        if nomPar == "seed_path" :
+            destdir = valPar
+            dest_AprojFiles = destdir + "/AprojFiles"
+            if not os.path.exists(dest_AprojFiles):
+                os.makedirs(dest_AprojFiles)
+            list_ext = [".aproj", ".asim", ".aform"]
+            copyFileDir_ext(animatsimdir, dest_AprojFiles, list_ext,copy_dir=0)    
+            win.newDestFolder = valPar     
+            win.rg_bhv_selected = rg_bestbhv
+            # =================================================================
+            win.run_list_selected_param(saveAproj=True, saveAsim=True)
+            # =================================================================
+            # ================== make graphs for each selected bhv ============
+            win.select_df_bhvremain = win.df_bhvremain
+            dest_ResultFiles = destdir + "/ResultFiles"
+            if not os.path.exists(dest_ResultFiles):
+                os.makedirs(dest_ResultFiles)
+            NewResultFilePath = dest_ResultFiles
+            cleanChartsFromNewResultDir(optSet, NewResultFilePath)
+            src = os.path.join(animatsimdir, "ResultFiles")
+            dst = os.path.join(destdir, "ResultFiles")
+            # copyFile("paramOpt.pkl", src, dst)
+            copyFile("template.txt", src, dst)
+            copyFileWithExt(src, dst, ".pkl")
+            copyFileWithExt(src, dst, ".txt")
+            # templateFileName = resultdir + "/template.txt"
+            saveGraphs = True
+            win.seeds_selected = seeds_selected
+            win.optSet.spanStim = 5
+            win.optSet.spanSyn = 5
+            dest_GePdata = destdir + "/GEPdata"
+            if not os.path.exists(dest_GePdata):
+                os.makedirs(dest_GePdata)
+            win.saves_newGEPdata(seedDirCreate=False,
+                                 saveGrFromChart=saveGraphs)
+            dest_SimFiles = destdir + "/SimFiles"
+            if not os.path.exists(dest_SimFiles):
+                os.makedirs(dest_SimFiles)
+
+
+
 def sets_randGEPParam(tabscript, line):
     """
     In : tabscript : list containing the couples
@@ -711,7 +854,7 @@ def savemapbehav():
     win.save_map_behav(df_bhvremain, dest, name)
 
 
-def readCommand(tabscript, par, line, angles, const):
+def readCommand(tabscript, par, line, ang_txt, const):
     """
     In : tabscript : list containing the couples
         ("the_name_of_the_parameter=its_value") as exctracted in the function
@@ -732,6 +875,8 @@ def readCommand(tabscript, par, line, angles, const):
         SetsCMAEsParam(tabscript, line)
     if par == "loeb" or par == "Loeb" or par == "VSCD":
         SetsVSCDParam(tabscript, line)
+    if par == "Get30Bestbhv":   
+        setsSeedsSearch(tabscript, line)
     if par == "other_constraints":
         set_other_constraints(tabscript, line)
     if par == "loadGEPdata":
@@ -751,12 +896,13 @@ def readCommand(tabscript, par, line, angles, const):
         pathDest = animatsimdir
         copyDirectory(srcdir, pathDest)
         checkCreateDir(optSet.folders)
+
 # TODO Modify the CopyData so it takes only two inputs or put an option
     if par == "transfertData":
         savemapbehav()  # before transfert => saves map of behaviors
         # ************************************************************
         pathSrc, pathDest = prepareTransfertData(tabscript, line)
-        transfertData(pathSrc, pathDest, 0, angle=angles, const=const)
+        transfertData(pathSrc, pathDest, 0, ang_txt=ang_txt, const=const)
         # ************************************************************
         #       after trasfert of the trial reinitialization is needed
         win.reset()     # dataStructure, optSet.pairs, optSet.behavs, x0...
@@ -765,15 +911,15 @@ def readCommand(tabscript, par, line, angles, const):
         # ************************************************************
         src, dest = prepareTransfertData(tabscript, line)
         src = animatsimdir
-        transfertData(src, dest, 0, angle=angles, const=const)
+        transfertData(src, dest, 0, ang_txt=ang_txt, const=const)
         # ************************************************************
         #       after trasfert of the trial reinitialization is needed
         win.reset()     # dataStructure, optSet.pairs, optSet.behavs, x0...
 # TODO Modify TranfertData so it takes only two parameters or put an option
 
     if par == "GEPMetrixGraphs":
-        from makeGraphs import GUI_Graph
-        from makeGraphs import GEPGraphsMetrics
+        #from makeGraphs import GUI_Graph
+        #from makeGraphs import GEPGraphsMetrics
         MyWin = GUI_Graph()
         MyWin.optSet = optSet
         MyWin.errThr = win.errThr
@@ -826,7 +972,7 @@ def readCommand(tabscript, par, line, angles, const):
         MyWin.closeIt()
 
 
-def readsConst_Exec(tabscript, startLine, endLine, angles):
+def readsConst_Exec(tabscript, startLine, endLine, ang_txt):
     """
     In : startLine : the number of the line on which we start the settings
         of the search algorithms
@@ -850,10 +996,10 @@ def readsConst_Exec(tabscript, startLine, endLine, angles):
                 # nomPar = val[:val.find("=")]
                 cval.append(float(val[val.find("=")+1:]))
             const, cstxt = SetsConstParam(tabscript, line)
-        print("----------------------------------------------------------")
-        print(const)
-        print("----------------------------------------------------------")
-        readCommand(tabscript, par, line, angles, const)
+            print("----------------------------------------------------------")
+            print(const)
+            print("----------------------------------------------------------")
+        readCommand(tabscript, par, line, ang_txt, const)
         line += 1
     return const
 
@@ -881,13 +1027,13 @@ def runSeriesMvts(tabscript, listNewMvtline):
             print("angle1", angle1, "angle2", angle2)
             if tabscript[startnewMvt][3] == "mvtdur":
                 mvtdur = float(tabscript[startnewMvt][4])
-                angles = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+                ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
             elif tabscript[startnewMvt][3] == "max_speed":
                 max_speed = float(tabscript[startnewMvt][4])
                 amplitude = angle2 - angle1
                 mvtdur = calculateMvtdurFromMax_Speed(optSet, max_speed,
                                                       amplitude)
-                angles = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+                ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
             changeMvtTemplate(optSet, angle1, angle2, mvtdur)
             win.mvtPlot.pw_mvt.clearPlots()
             win.mvtPlot.pw_mvt.plot(win.mvtTemplate[:, 1],
@@ -905,7 +1051,7 @@ def runSeriesMvts(tabscript, listNewMvtline):
             print("scriptFile saved to :", newName)
             # sets and executes run
             # ###################################
-            readsConst_Exec(tabscript, startLine, endLine, angles)
+            readsConst_Exec(tabscript, startLine, endLine, ang_txt)
             # ###################################
 
             list_err = win.err
@@ -913,7 +1059,7 @@ def runSeriesMvts(tabscript, listNewMvtline):
 
             """
             sourcedir = animatsimdir
-            destdir = os.path.join(savedatadir, angles, const)
+            destdir = os.path.join(savedatadir, ang_txt, const)
             print sourcedir, "->", destdir
             """
             print()
@@ -1056,7 +1202,7 @@ def prepareTransfertData(tabscript, line):
     return pathSrc, pathDest
 
 
-def transfertData(animatsimdir, savedatadir, idx, angle='0', const='0',
+def transfertData(animatsimdir, savedatadir, idx, ang_txt='0', const='0',
                   iteration=0):
     """
     In : animatsimdir : the path to the directory of animatlab
@@ -1071,7 +1217,7 @@ def transfertData(animatsimdir, savedatadir, idx, angle='0', const='0',
     if idx != 0:
         destdir = os.path.join(savedatadir)
     else:
-        destdir = os.path.join(savedatadir, angle, const)
+        destdir = os.path.join(savedatadir, ang_txt, const)
         if not os.path.exists(destdir):
             os.makedirs(destdir)
         listsubdir = os.listdir(destdir)
@@ -1211,6 +1357,7 @@ def checkCreateDir(folders):
     This procedure verify if the given path leads to a folder if not, it
     creates the folders "AprojFiles"; "CMAeSeuilAprojFiles"; "SimFiles"
     """
+    animatsimdir = origin_animatsimdir
     folders.affectDirectories()
     aprojSaveDir = os.path.join(folders.animatlab_rootFolder,
                                 "AprojFiles")
@@ -1233,7 +1380,7 @@ def checkCreateDir(folders):
         copyFileDir(animatsimdir,
                     SimFiles,
                     copy_dir=0)
-
+    
 
 def realFromNorm(xparName, norm):
     """
@@ -1622,6 +1769,112 @@ def readscriptfile(scriptfilename):
             animatsimdir, srcdir, gravity)
 
 
+def finisb_after_crash():
+    # self = win
+    idx = 0
+    startnewMvt = listNewMvtline[idx]
+    angle1 = float(tabscript[startnewMvt][1])
+    angle2 = float(tabscript[startnewMvt][2])
+    print()
+    print("angle1", angle1, "angle2", angle2)
+    if tabscript[startnewMvt][3] == "mvtdur":
+        mvtdur = float(tabscript[startnewMvt][4])
+        ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+    elif tabscript[startnewMvt][3] == "max_speed":
+        max_speed = float(tabscript[startnewMvt][4])
+        amplitude = angle2 - angle1
+        mvtdur = calculateMvtdurFromMax_Speed(optSet, max_speed,
+                                              amplitude)
+        ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+    print(ang_txt)
+    startLine = startnewMvt+1
+    if idx < len(listNewMvtline)-1:  # we are not in the last angle Set
+        endLine = listNewMvtline[idx+1]
+    else:       # This is the last angle set
+        endLine = len(tabscript)-1
+    print(startLine, endLine) 
+    
+    line = startLine
+    const = ""
+    while line <= endLine:
+        print(line, end=' ')
+        par = tabscript[line][0]
+        print(par)
+        cval = []
+        if par == "const":
+            for val in tabscript[line][1:]:
+                # nomPar = val[:val.find("=")]
+                cval.append(float(val[val.find("=")+1:]))
+            const, cstxt = SetsConstParam(tabscript, line)
+        print("----------------------------------------------------------")
+        print(const)
+        print("----------------------------------------------------------")
+        line += 1
+    
+    par = "GEPMetrixGraphs"
+    from makeGraphs import GUI_Graph
+    from makeGraphs import GEPGraphsMetrics
+    MyWin = GUI_Graph()
+    MyWin.optSet = optSet
+    MyWin.errThr = win.errThr
+    MyWin.coactThr = win.coactThr
+    MyWin.behav_col = win.behav_col
+    win.hide()
+    win.mvtPlot.hide()
+    win.bhvPlot.hide()
+    if win.df_bhvremain is not None:
+        # pathGEP = MyWin.listGEPFolders[0]
+        # root_path = os.path.split(pathGEP)[0]
+        root_path = win.animatsimdir
+        graph_path = os.path.join(root_path, "graphs")
+        graph_path = root_path + "/graphs"
+        MyWin.graph_path = graph_path
+        # df_bhvremain = win.update_df_bhvremain(mseThr=1.0)
+        win.df_bhvremain.loc[:, "orig_rg"] = win.df_bhvremain["rgserie"]
+        win.df_bhvremain.loc[:, "rgserie"] = win.df_bhvremain.index
+        win.df_parremain.loc[:, "orig_rg"] = win.df_parremain["rgserie"]
+        win.df_parremain.loc[:, "rgserie"] = win.df_parremain.index
+        MyWin.df_bhvremain = win.df_bhvremain
+        MyWin.df_parremain = win.df_parremain
+        MyWin.listGEPFolders = [animatsimdir+"/GEPdata"]
+        MyWin.scale_x, MyWin.scale_y = win.scale_x, win.scale_y
+        MyWin.prevListGEPFiles = ["GEPdata00.par"]
+
+        MyWin.makeGEPMetrics = GEPGraphsMetrics(MyWin)
+        MyWin.makeGEPMetrics.GUI_Gr_obj = MyWin
+        MyWin.makeGEPMetrics.behav_col = win.behav_col
+        # MyWin.behav_col = win.behav_col
+        MyWin.makeGEPMetrics.GUI_Gr_obj.mafen = win
+        print("Saving bhv graph")
+        MyWin.makeGEPMetrics.saveplot_bhv()
+
+        MyWin.makeGEPMetrics.autoscale = True
+        print("Saving par graphs")
+        win.activateAllParGraphs(plot=0)
+        MyWin.makeGEPMetrics.saveplot_bhvparam()
+
+        print("Saving density map contour")
+        MyWin.makeGEPMetrics.plot_save_2D_densitymap_contour()
+        
+        print("Saving density map_metrics")
+        MyWin.makeGEPMetrics.plot_save_density_map_metrics()
+
+        # MyWin.plot_2D_stability_map(win.df_bhvremain, win.df_parremain)
+
+        print("Saving rGEP time course")
+        MyWin.makeGEPMetrics.grid_method()
+    MyWin.closeIt()
+    
+    line = 9
+    par == "transfert_from_workDir"
+    savemapbehav()  # before transfert => saves map of behaviors
+    # ************************************************************
+    src, dest = prepareTransfertData(tabscript, line)
+    src = animatsimdir
+    transfertData(src, dest, 0, ang_txt=ang_txt, const=const)
+
+
+
 # =============================================================================
 #                                   MAIN
 # =============================================================================
@@ -1653,7 +1906,7 @@ if __name__ == '__main__':
             animatLabV2ProgDir, nb_procs = getInfoComputer()
         # ===================================================================
         line = 0
-
+        origin_animatsimdir = animatsimdir
         res = initAnimatLab(animatsimdir, animatLabV2ProgDir)
         
         OK = res[0]
@@ -1691,6 +1944,7 @@ if __name__ == '__main__':
                                                yshift=sg.height()-mvtpl_height)
             win.show()
             win.animatsimdir = animatsimdir
+            win.mydir = animatsimdir + "/GEPdata"
             win.save_paramNames_bhvNames()
             if gravity == 1000:     #  No gravity indicated in scriptFile
                 gravity = readGravityfromAsim(model)

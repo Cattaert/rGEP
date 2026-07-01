@@ -3504,10 +3504,11 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
             pre = ""
         cleanChartsFromResultDir(optSet, 1, len(self.lst_paramserie), pre)
         subdir = os.path.join("ResultFiles", "tmpBestChart")
-        cleanChartsFromResultDir(optSet, 1, len(self.lst_paramserie), pre,
-                                 directory=subdir)
-        cleanAsimsFromResultDir(optSet, 1, len(self.lst_paramserie), pre,
-                                directory=subdir)
+        if os.path.exists(subdir):
+            cleanChartsFromResultDir(optSet, 1, len(self.lst_paramserie), pre,
+                                     directory=subdir)
+            cleanAsimsFromResultDir(optSet, 1, len(self.lst_paramserie), pre,
+                                    directory=subdir)
 
         # ================= saves movements from charts =======================
         df_bhvremain = self.select_df_bhvremain.loc[self.rg_bhv_selected]

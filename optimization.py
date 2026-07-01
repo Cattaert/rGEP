@@ -194,6 +194,13 @@ modified June 09, 2026 (D. Cattaert):
     To allow parallel processing of perturbatiuon procedure, new procedure 
     runTrials_saveAll() has been written. It is used in GEP_GUI.py medhods,
     and makeGraphs.py.
+modified July 01, 2026 (D. Cattaert):
+    The procedure testquality() has been improved by adding a new 
+    element in other_constraints : start_angle. This allow to create a
+    gradient for optimization methods, when movements that should start at a
+    given angle (for example 0 degrees) starts from another angle. The
+    penality is proportional to the difference between the reference
+    startangle and the start angle of a given movemenent.
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3122,10 +3129,17 @@ def testquality(optSet, tab, template, msetyp,affich=1):
         if "min_endangle" in other_constraints.keys():
             min_angle = other_constraints["min_endangle"]
             end_angle = mvt[optSet.lineEnd]
-            if  end_angle < min_angle:
-                minAngleP = 10 * (min_angle - end_angle)
+            start_angle = mvt[optSet.lineEnd1]
+            ampl = end_angle - start_angle
+            if  ampl < min_angle:
+                minAngleP = 1000 * (min_angle - ampl)
                 otherP += minAngleP
                 otherpenality["min_endangleP"] = minAngleP
+        if "start_angle" in other_constraints.keys():
+            startangle_tmplate = template[optSet.lineEnd1]
+            startangle = mvt[optSet.lineEnd1]
+            start_angleP = 100 * (startangle - startangle_tmplate)
+            otherpenality["start_angleP"] = start_angleP
                 
         if "max_endMN_pot" in other_constraints.keys():
             max_endMN_pot = other_constraints["max_endMN_pot"]
@@ -3532,6 +3546,27 @@ def getbehavElts(optSet, tab, affich=0, interval=1./6):
 def cleanChartsFromResultDir(optSet, firstChart, lastChart, pre,
                              directory="ResultFiles"):
     folder = os.path.join(optSet.folders.animatlab_rootFolder, directory)
+    simFileName = findChartName(optSet.model, optSet)[0]
+    nbchar = len(simFileName)
+    for the_file in os.listdir(folder):
+        ext = os.path.splitext(the_file)[1]
+        if ext == ".txt":
+            name = os.path.splitext(the_file)[0]
+            # print(name[0:nbchar])
+            if name[0:nbchar] == simFileName:
+                # print(name)
+                # print("file to be deleted: ", the_file)
+                file_path = os.path.join(folder, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                    # elif os.path.isdir(file_path): shutil.rmtree(file_path)
+                except Exception as e:
+                    print(e)
+
+
+def cleanChartsFromNewResultDir(optSet, NewResultFilePath):
+    folder = NewResultFilePath
     simFileName = findChartName(optSet.model, optSet)[0]
     nbchar = len(simFileName)
     for the_file in os.listdir(folder):
