@@ -165,6 +165,9 @@ Modified July 1, 2026 (D. Cattaert):
     bdf_hvremain. Creates all elements needed to run:
         win.run_list_selected_param(saveAproj=True, saveAsim=True)
     and saves the corresponding seed directory : 0_IDXXXNGC_autoSeeds00
+Modified July 02, 2026 (D. Cattaert):
+    The procedure "setsSeedsSearch" has been improved to eliminatethe list of
+    chart files in AutoSeedsXX ResultFiles sub-direcctory
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -584,7 +587,6 @@ def setsSeedsSearch(tabscript, line):
             if not os.path.exists(dest_ResultFiles):
                 os.makedirs(dest_ResultFiles)
             NewResultFilePath = dest_ResultFiles
-            cleanChartsFromNewResultDir(optSet, NewResultFilePath)
             src = os.path.join(animatsimdir, "ResultFiles")
             dst = os.path.join(destdir, "ResultFiles")
             # copyFile("paramOpt.pkl", src, dst)
@@ -596,11 +598,15 @@ def setsSeedsSearch(tabscript, line):
             win.seeds_selected = seeds_selected
             win.optSet.spanStim = 5
             win.optSet.spanSyn = 5
+            
             dest_GePdata = destdir + "/GEPdata"
             if not os.path.exists(dest_GePdata):
                 os.makedirs(dest_GePdata)
             win.saves_newGEPdata(seedDirCreate=False,
                                  saveGrFromChart=saveGraphs)
+
+            # cleanChartsFromNewResultDir(optSet, NewResultFilePath)
+            
             dest_SimFiles = destdir + "/SimFiles"
             if not os.path.exists(dest_SimFiles):
                 os.makedirs(dest_SimFiles)

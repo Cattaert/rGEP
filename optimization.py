@@ -201,6 +201,8 @@ modified July 01, 2026 (D. Cattaert):
     given angle (for example 0 degrees) starts from another angle. The
     penality is proportional to the difference between the reference
     startangle and the start angle of a given movemenent.
+modified july 02, 2026 (D. Cattaert):
+    Correction of a bug in the new other_constraints (start_angle)
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3135,12 +3137,14 @@ def testquality(optSet, tab, template, msetyp,affich=1):
                 minAngleP = 1000 * (min_angle - ampl)
                 otherP += minAngleP
                 otherpenality["min_endangleP"] = minAngleP
+                
         if "start_angle" in other_constraints.keys():
             startangle_tmplate = template[optSet.lineEnd1]
             startangle = mvt[optSet.lineEnd1]
-            start_angleP = 100 * (startangle - startangle_tmplate)
+            start_angleP = 100 * abs(startangle - startangle_tmplate[2])
+            otherP += start_angleP
             otherpenality["start_angleP"] = start_angleP
-                
+        
         if "max_endMN_pot" in other_constraints.keys():
             max_endMN_pot = other_constraints["max_endMN_pot"]
             endMN0_pot = tabMN0[optSet.lineEnd]
@@ -3189,9 +3193,15 @@ def testquality(optSet, tab, template, msetyp,affich=1):
         print("cost:{:4.2f}".format(mse))
         print("coactP1: {:4.2f}".format(res1[0]), end=' ')
         print("coactP2: {:4.2f}".format(res2[0]), end=' ')
-        print("MaxAngleP: {:4.2f}".format(endAngleP), end=' ')
-        print("MinAngleP: {:4.2f}".format(minAngleP), end=' ')
-        print("EndMNpotP: {:4.2f}".format(endMNpotP))
+        if "max_endangle" in other_constraints.keys():
+            print("MaxAngP: {:4.2f}".format(endAngleP), end=' ')
+        if "min_endangle" in other_constraints.keys():
+            print("MinAmplP: {:4.2f}".format(minAngleP), end=' ')
+        
+        if "start_angle" in other_constraints.keys():
+            print("SrartAngP: {:4.2f}".format(start_angleP), end=' ')
+        
+        print("EndpotP: {:4.2f}".format(endMNpotP))
         
         # print(otherpenality)
 

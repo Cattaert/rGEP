@@ -28,6 +28,9 @@ modified July 01, 2026 (D. Cattaert):
     given angle (for example 0 degrees) starts from another angle. The
     penality is proportional to the difference between the reference
     startangle and the start angle of a given movemenent.
+modified July 02, 2026 (D. Cataert):
+    Adding missing elements for the new other_constraints element
+    (start_angle)
 """
 
 import random
@@ -385,8 +388,9 @@ class OptimizeSimSettings():
                                   "start_angle" : 0,
                                   'max_endMN_pot': -0.061}
         self.otherconstraints_names = ['max_endangle', 'min_endangle',
-                                       'max_endMN_pot']
-        self.otherconstraints_short_names = ['MaxA', 'minA', 'EndMNV']
+                                       "start_angle", 'max_endMN_pot']
+        self.otherconstraints_short_names = ['MaxA', 'minA',
+                                             'StA', 'EndMNV']
         self.dic_oc_short = {}
         for idx, name in enumerate(self.otherconstraints_names):
             self.dic_oc_short[name] = self.otherconstraints_short_names[idx]
