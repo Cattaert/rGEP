@@ -168,6 +168,15 @@ Modified July 1, 2026 (D. Cattaert):
 Modified July 02, 2026 (D. Cattaert):
     The procedure "setsSeedsSearch" has been improved to eliminatethe list of
     chart files in AutoSeedsXX ResultFiles sub-direcctory
+Modified July 4, 2026 (D. Cattaert):
+    This new version allows to create random FinalModel files. This allows to
+    run several CMAes optimizations series starting from a random  set of
+    parameters. THis is done via a new procedure: "makeFinalModelRandom()"
+    With a sigma reduced from 0.01 to 0.002 cmaes converges rapidly on a
+    likely different valid family. "buildControlScriptGerSeeds.py" has been 
+    modified accordingly.
+Modified July 06, 2026 (D. Cattaert):
+    Added possibility to start CMAes fom random
 """
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore
@@ -175,7 +184,7 @@ from pyqtgraph.Qt import QtWidgets
 
 import class_animatLabModel as AnimatLabModel
 import class_animatLabSimulationRunner as AnimatLabSimRunner
-# import class_simulationSet as SimulationSet
+import class_simulationSet as SimulationSet
 import class_projectManager as ProjectManager
 
 from GEP_GUI import MaFenetre, initAnimatLab
@@ -203,6 +212,10 @@ from optimization import readGravity
 from optimization import readGravityfromAsim
 from optimization import readSpan
 from optimization import readSpan_from_DicSpanVal
+from optimization import normToRealVal
+from optimization import findAsimName
+from optimization import set_limits_singleparamset
+from optimization import actualiseSaveAprojFromAsimFile
 from optimization import getInfoComputer
 from SaveInfoComputer import SetComputerInfo
 
@@ -594,23 +607,103 @@ def setsSeedsSearch(tabscript, line):
             copyFileWithExt(src, dst, ".pkl")
             copyFileWithExt(src, dst, ".txt")
             # templateFileName = resultdir + "/template.txt"
+            cleanChartsFromNewResultDir(optSet, NewResultFilePath)
+
             saveGraphs = True
             win.seeds_selected = seeds_selected
             win.optSet.spanStim = 5
-            win.optSet.spanSyn = 5
-            
+            win.optSet.spanSyn = 5            
             dest_GePdata = destdir + "/GEPdata"
             if not os.path.exists(dest_GePdata):
                 os.makedirs(dest_GePdata)
             win.saves_newGEPdata(seedDirCreate=False,
                                  saveGrFromChart=saveGraphs)
-
-            # cleanChartsFromNewResultDir(optSet, NewResultFilePath)
             
             dest_SimFiles = destdir + "/SimFiles"
             if not os.path.exists(dest_SimFiles):
                 os.makedirs(dest_SimFiles)
 
+
+def makeFinalModelRandom():
+    span = 0.5
+    finalpar = copy.deepcopy(optSet.x0)
+    finalpar =np.array([finalpar])
+
+    nbpar = win.nbpar
+    randpar = np.random.random_sample((1, nbpar))[0]
+    randpar = (randpar - 0.5) * 2   # paramserie in range (-1, 1)
+    # recalculate paramserie centered on x0, width = span
+    randpar = randpar * span / 200
+    x0 = finalpar
+    # x = np.array([x0])
+    x0 = x0[0] +randpar
+    rand = randpar
+    paramserie = set_limits_singleparamset(x0, rand, 10, 0, 1, optSet,
+                                           stim_liminf=True, stim_limsup=True,
+                                           syn_liminf=True, syn_limsup=True)
+    x0 = np.array(paramserie)
+    
+    simSet = SimulationSet.SimulationSet()
+    projMan = optSet.projMan
+    stimParName = optSet.stimParName
+    synParName = optSet.synParName
+    synNSParName = optSet.synNSParName
+    synFRParName = optSet.synFRParName
+    [simSet, vals] = normToRealVal(x0, optSet, simSet,
+                                   stimParName, synParName,
+                                   synNSParName, synFRParName)
+    #==========================================================================
+    # Nettoyage du sub-dir "SimFiles" de animatsimdir (workDir_animatlab)
+    simFileDir = animatsimdir + "/SimFiles"
+    simFileName = findAsimName(optSet.model, optSet)[0]
+    nbchar = len(simFileName)
+    for the_file in os.listdir(simFileDir):
+        ext = os.path.splitext(the_file)[1]
+        if ext == ".asim":
+            name = os.path.splitext(the_file)[0]
+            # print(name[0:nbchar])
+            if name[0:nbchar] == simFileName:
+                # print(name)
+                # print("file to be deleted: ", the_file)
+                file_path = os.path.join(simFileDir, the_file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                    # elif os.path.isdir(file_path): shutil.rmtree(file_path)
+                except Exception as e:
+                    print(e)
+    #==========================================================================
+    # création dans "SimFiles" du nouveau asim à partir de simset
+    projMan.make_asims(simSet)
+    asimFileName = simFileDir + "/" + simFileName + "-1.asim"
+    # copy du nouvelasim dans FinalModel
+    sourcedir = animatsimdir + "/SimFiles"
+    sourcefile = simFileName + "-1.asim"
+    FinalModeldir = animatsimdir + "/FinalModel"
+    destdir = animatsimdir + "/FinalModel"
+    destfile = simFileName + ".asim"
+    newName = copyRenameFilewithExt(sourcedir, sourcefile,
+                                    destdir, destfile,
+                                    ".asim", "", replace=1)
+    aprojFileName = animatsimdir + "/FinalModel/" + aprojFicName
+    #==========================================================================
+    # création du nouvau fichier aproj à partir du fichier asim
+    final_asimFileName = destdir + "/" + destfile
+    actualiseSaveAprojFromAsimFile(optSet,
+                                   final_asimFileName,
+                                   aprojFileName,
+                                   overwrite=1,
+                                   createSimSet=1,
+                                   affiche=0)
+    #================================================================
+    # copy the new random aproj and asim files to a subdirectory
+    initial_RandomFinalModel = destdir + "/InitialRandomFiles"
+    if not os.path.exists(initial_RandomFinalModel):
+        os.makedirs(initial_RandomFinalModel)
+    copyFileDir(FinalModeldir,
+                initial_RandomFinalModel,
+                copy_dir=0)
+    optSet.x0 = x0
 
 
 def sets_randGEPParam(tabscript, line):
@@ -768,6 +861,8 @@ def SetsCMAEsParam(tabscript, line):
     nomPar, valPar = extractParam(tabscript[line+1][0])
     if nomPar == "span" or nomPar == "fourch":
         set_span_par_name(valPar)
+    if win.setFinalModelRandom: 
+        makeFinalModelRandom()
     win.runCMAeFromGUI()                # executes CMAES runs
     if os.path.exists(animatsimdir + "/ResultFiles/chart_plot.pkl"):
         src = animatsimdir + "/ResultFiles/chart_plot.pkl"
@@ -877,6 +972,8 @@ def readCommand(tabscript, par, line, ang_txt, const):
         SetsRandParam(tabscript, line)
     if par == "GEPrand":
         sets_randGEPParam(tabscript, line)
+    if par == "CMAesRandomStartFiles":
+        win.setFinalModelRandom = True
     if par == "CMAES" or par == "cmaes":
         SetsCMAEsParam(tabscript, line)
     if par == "loeb" or par == "Loeb" or par == "VSCD":
@@ -1914,7 +2011,8 @@ if __name__ == '__main__':
         line = 0
         origin_animatsimdir = animatsimdir
         res = initAnimatLab(animatsimdir, animatLabV2ProgDir)
-        
+
+
         OK = res[0]
         if OK:
             # folders = res[1]
@@ -1956,6 +2054,7 @@ if __name__ == '__main__':
                 gravity = readGravityfromAsim(model)
             optSet.gravity = gravity
             win.editValueGravity.setText(str(gravity))
+            win.setFinalModelRandom = False
             runSeriesMvts(tabscript, listNewMvtline)
             win.closeWindows()
             sys.exit()

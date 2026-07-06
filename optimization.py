@@ -203,6 +203,13 @@ modified July 01, 2026 (D. Cattaert):
     startangle and the start angle of a given movemenent.
 modified july 02, 2026 (D. Cattaert):
     Correction of a bug in the new other_constraints (start_angle)
+modified July 03, 2026 (D. Cattaert):
+    In testquality procedure the penalty for minangleP changed to 10
+    and penalty for start-angleP  changed to 10
+Modified July 06, 2026 (D. Cattaert):
+    New procedure added: "set_limits_singleparamset()", used to create valid
+    random start (i.e. all param in the range (0,1)). This is used to allow
+    CMAes start from random in contromScriptGEP.py
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -3042,7 +3049,7 @@ def coactivityVN(tabMN0, tabMN1, lineStart, lineEnd,
     return [coactpenality, coact, actMN0, actMN1]
 
 
-def testquality(optSet, tab, template, msetyp,affich=1):
+def testquality(optSet, tab, template, msetyp, affich=1):
     """
     Function testquality
         In : optSet :The object
@@ -3134,14 +3141,14 @@ def testquality(optSet, tab, template, msetyp,affich=1):
             start_angle = mvt[optSet.lineEnd1]
             ampl = end_angle - start_angle
             if  ampl < min_angle:
-                minAngleP = 1000 * (min_angle - ampl)
+                minAngleP = 10 * (min_angle - ampl)
                 otherP += minAngleP
                 otherpenality["min_endangleP"] = minAngleP
                 
         if "start_angle" in other_constraints.keys():
             startangle_tmplate = template[optSet.lineEnd1]
             startangle = mvt[optSet.lineEnd1]
-            start_angleP = 100 * abs(startangle - startangle_tmplate[2])
+            start_angleP = 10 * abs(startangle - startangle_tmplate[2])
             otherP += start_angleP
             otherpenality["start_angleP"] = start_angleP
         
@@ -4589,6 +4596,68 @@ def get_brushes_from_gist(sequence):
                                          tolist())) for i in
                range(color_for_points.shape[0])]
     return brushes
+
+
+def set_limits_singleparamset(x, rand, span, inf, sup, optSet,
+                              stim_liminf=False, stim_limsup=False,
+                              syn_liminf=True, syn_limsup=False):
+    """
+    Function set_limits
+        In : x :²
+    """
+    stpar_nb = int(len(optSet.stimParName))
+    xstim = x[:stpar_nb]
+    xsyn = x[stpar_nb:]
+    if type(span) is int:
+        spanstim = span
+        spansyn = span
+    else:
+        spanstim = span[:np.shape(x)[0], :stpar_nb]
+        spansyn = span[:np.shape(x)[0], stpar_nb:]
+    # else:
+    #    spanstim = span[:stpar_nb]
+    #    spansyn = span[stpar_nb:]
+
+    randstim = rand[:stpar_nb]
+    randsyn = rand[stpar_nb:]
+
+    @np.vectorize(otypes=[float])
+    def limitinf(xsubarr, randsubarr, span):
+        return xsubarr if xsubarr >= inf else (inf - randsubarr*span/1000)
+
+    @np.vectorize(otypes=[float])
+    def limitsup(xsubarr, randsubarr, span):
+        return xsubarr if xsubarr <= sup else (1-randsubarr*span/1000)
+
+    # first ensure that the first value is not out of the range(inf, sup)
+    if x[0] > sup:
+        x[0] = sup
+    elif x[0] < inf:
+        x[0] = inf
+    """
+    if stim_lim:
+        stimarray = limitinf(limitsup(xstim, randstim), randstim)
+    else:
+        stimarray = xstim
+
+    if syn_lim:
+        synarray = limitinf(limitsup(xsyn, randsyn), randsyn)
+    else:
+        synarray = xsyn
+    """
+    stimarray = xstim
+    if stim_liminf:
+        stimarray = limitinf(stimarray, randstim, spanstim)
+    if stim_limsup:
+        stimarray = limitsup(stimarray, randstim, spanstim)
+
+    synarray = xsyn
+    if syn_liminf:
+        synarray =limitinf(synarray, randsyn, spansyn)
+    if syn_limsup:
+        synarray = limitsup(synarray, randsyn, spansyn)
+    return np.concatenate([stimarray, synarray])
+
 
 
 def set_limits(x, rand, span, inf, sup, optSet, stim_liminf=False,

@@ -10,12 +10,26 @@ coactThr that goes from large to small values. After the CMAes is finished, the
 After each GEP the same procedure is applied to build seeds that are moroe and
 more constrained. The idea is to finaly get the greatest variety of seeds the
 would represent different families.
+Modified July 4, 2026 (D. Cattaert):
+    New possibility to choose which chart parameters to plot before starting to
+    write the scriptFile using a new procedure "select_chartcol()"
+    Penalties coactP1 & coactP2 have been set to 100 and 100 by default
+    Possibility to run several successive cmaes from the runScriptFile. To do
+    this "write_optim_scriptFile" procedure checks if the scriptFile already
+    exixts. If Not this means this is the first time the scriptFIle is
+    written -> sets mode_openfile = "w". If it already exists the new cmaes
+    instructions will be added at the end of the scriptFile. To do this
+    mode_openfile = "a".
+    Le nom du scriptFile "AutomaticSeedSearch.txt" est maintenant incrémentiel.
+Modified July 06, 2026 (D. Cattaert):
+    Added possibility to start CMAes fom random
 """
 
 import os
 import tkinter, tkinter.filedialog
 import csv, json
-
+import pickle
+from pathlib import Path
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtWidgets
@@ -47,6 +61,41 @@ import class_simulationSet as SimulationSet
 import class_projectManager as ProjectManager
 
 from controlScriptGEP import transfertData
+
+
+def next_name(path):
+    path = Path(path)
+    if not path.exists():
+        return path
+    stem, suffix = path.stem, path.suffix
+    i = 1
+    while True:
+        p = path.with_name(f"{stem}{i:02d}{suffix}")
+        if not p.exists():
+            return p
+        i += 1
+
+
+def select_chartcol(optSet, colnames):
+    list_elem = colnames
+    typ = "chart_col"
+
+    print("Select sensory neurons to plot (validate the selection window)")
+    selected = optSet.sensColChartNames
+    text = "select sensory neurons to plot"
+    list_sensory_neur = choose_elements_in_list(list_elem, typ, selected, text)
+
+    print("Select alpha MNs to plot (validate the selection window)")
+    selected = optSet.mnColChartNames
+    text = "select alpha MNs to plot"
+    list_alpha_neur = choose_elements_in_list(list_elem, typ, selected, text)
+
+    print("Select gamma MNs to plot (check and validate selection window)")
+    selected = []
+    text = "select PN & potMuscle to plot"
+    list_gamma_neur = choose_elements_in_list(list_elem, typ, selected, text)
+    return list_sensory_neur, list_alpha_neur, list_gamma_neur
+
 
 
 def getValuesFromTxtAngles(angles):
@@ -289,8 +338,8 @@ def get_general_constraints(base_path, process):
             oc = get_oc(other_constraints)
         else:
             print("No CostFunctionParam.json file found...")
-            cP1 = 0
-            cP2 = 0   
+            cP1 = 100
+            cP2 = 100   
             if base_path != "":
                 base_root_name = os.path.split(base_root)[-1]
                 prev_cP = base_root_name[base_root_name.find("cP"):]
@@ -336,8 +385,8 @@ def get_general_constraints(base_path, process):
             cP1 = costFunctionDic["coactP1"]
             cP2 = costFunctionDic["coactP2"]
         else:
-            cP1 = 0
-            cP2 = 0
+            cP1 = 100
+            cP2 = 100
         dicValues = {'coactP1':cP1, 'coactP2':cP2}
         selected = list(dicValues.keys())
         typ = "General settings"
@@ -375,7 +424,7 @@ def get_elts_optim_procedure(model_short_ID, base_path):
     #Æres = get_general_constraints(base_path, "optimization")
     #coactP1, coactP2, cP, other_constraints, oc = res
     if optimiz == "CMAes":
-        dicValues = {'sigma':0.01, 'nbRuns':3000,
+        dicValues = {'sigma':0.001, 'nbRuns':3000,
                      'span':100, "errThr":10, "coactThr":2}
         selected = list(dicValues.keys())
         typ = "CMAes settings"
@@ -386,16 +435,19 @@ def get_elts_optim_procedure(model_short_ID, base_path):
         span = int(dicValues["span"])
         # scriptFile_name = optimiz + "_" + model_short_ID
         # scriptFile_name += "_" + "span" + str(int(dicValues["span"]))
+        """
         scriptFile_name = "autoSeekSeeds_" + model_short_ID
         scriptFile_name += "_" + optimiz
-        
+        """
         errThr = dicValues["errThr"]
         coactThr = dicValues["coactThr"]
         Th = "errT{}coT{}".format(str(errThr), str(coactThr))
         
         # scriptFile_name += "_" + cP + oc + Th + ".txt"
+        """
         scriptFile_name += "_GEP" + "_" + cP + oc + Th + ".txt"
         scriptFile_name = get_control_script_filename(scriptFile_name)
+        """
         s = "cmaes" + '\t' + "xCoactPenality1=" + str(coactP1) + '\t'
         s += "xCoactPenality2=" + str(coactP2) + '\t'
         s += "threshold=Var" + '\t' + "cmaes_sigma=" 
@@ -416,15 +468,17 @@ def get_elts_optim_procedure(model_short_ID, base_path):
         print(dicValues)
         
         span = int(dicValues["span"])
+        """
         scriptFile_name = optimiz + "_" +  model_short_ID
         scriptFile_name += "_" + "span" + str(int(dicValues["span"]))
-        
+        """
         errThr = dicValues["errThr"]
         coactThr = dicValues["coactThr"]
         Th = "errT{}coT{}".format(str(errThr), str(coactThr))
-        
+        """
         scriptFile_name += "_" + cP + oc + Th + ".txt"
         scriptFile_name = get_control_script_filename(scriptFile_name)
+        """
         s = "VSCD" + '\t' + "xCoactPenality1=" + str(coactP1) + '\t'
         s += "xCoactPenality2=" + str(coactP2) + '\t'
         s += "deltacoeff=" + str(dicValues["deltacoeff"]) +'\t'
@@ -545,10 +599,17 @@ def write_optim_scriptFile(optSet, root_path, modeldirname, seeds_path,
         json.dump(costFunctionDic, file)
     # =========================================================================    
     if optimiz == "CMAes":
+        """
         completeScriptName = os.path.join(scriptFile_path, scriptFile_name)
         if not os.path.exists(scriptFile_path):
             os.makedirs(scriptFile_path)
-        with open(completeScriptName, 'w') as f:
+        """
+        completeScriptName = os.path.join(scriptFile_path, scriptFile_name)
+        if not os.path.exists(completeScriptName): 
+            mode_openfile = "w"
+        else:
+            mode_openfile = "a"
+        with open(completeScriptName, mode_openfile) as f:
             s0 = "create_workDir" + "\t" + "Path=" + newmodel_root + "/" + "\t"
             s0 += "DirName=workDir_animatlab" + "\n"
             print(s0)
@@ -576,6 +637,8 @@ def write_optim_scriptFile(optSet, root_path, modeldirname, seeds_path,
                 oc_txt = oc_txt[:-1]    # suppress the last '\t' 
                 oc_txt += '\n'
             f.write(oc_txt)
+            if Randomize_before_cmaes:
+                f.write("CMAesRandomStartFiles\n")
             s5 = txt_optimiz
             print(s5)
             f.write(s5)
@@ -662,8 +725,9 @@ def write_GEP_scriptFile(optSet, root_path, modeldirname, rep1,
      gravity, angles, ang_txt, bhvCriteria) = rep1
     # cwd = os.getcwd()
     # scriptFile_path = os.path.join(cwd, "Script_files")
-    errThr = SeedSearch_dicVal['errThr' + str(autoSeed_number-1)]
-    coactThr = SeedSearch_dicVal['coactThr' + str(autoSeed_number-1)]
+    errThrNb = autoSeed_number - CMAesNb
+    errThr = SeedSearch_dicVal['errThr' + str(errThrNb)]
+    coactThr = SeedSearch_dicVal['coactThr' + str(errThrNb)]
     GEP_dicValues = {'neighbours':1, 'auto':1, 'nbextend':200, 'nbfill':20,
                      'errThr':errThr, 'coactThr':coactThr}
 
@@ -775,17 +839,23 @@ if __name__ == '__main__':
     res = get_general_constraints(base_path, process)
     coactP1, coactP2, cP, other_constraints, oc = res
     
-    completeScriptName = os.path.join(scriptFile_path, scriptFile_name)  
+    completeScriptName = os.path.join(scriptFile_path, scriptFile_name)
+    completeScriptName = next_name(completeScriptName)
+    scriptFile_name = os.path.split(completeScriptName)[-1]
+    
     model_completeidentification = modeldirname + "_" + model_identification
     model_completeidentification += "_"+ bhvord + "_"+ cP + "_"+ oc
     newmodel_root = root_path + "/" + model_completeidentification
     newbase_dirname = "0_" + model_short_ID + "_base"
     newbase_path = newmodel_root + "/" + newbase_dirname
+    base_result_path = newbase_path + "/ResultFiles"
+    chart_plot_pickle_name = base_result_path + "/chart_plot.pkl"
 
-
+   
     # =========================================================================
     process = "optimization"
     # =========================================================================
+    CMAesNb = 1
     rep2 = get_elts_optim_procedure(model_short_ID, base_path)
     optimiz, txt_optimiz, cP, oc, Th, span, dicValues = rep2
     
@@ -795,33 +865,50 @@ if __name__ == '__main__':
         os.makedirs(newbase_path)
         copyDirectory(model_path, newbase_path)
         print(newbase_path, "created")
+    
+    if os.path.exists(chart_plot_pickle_name):
+        with open(chart_plot_pickle_name, 'rb') as f1:
+            optSet.chart_column_to_plot = pickle.load(f1)
+            list_sensory_neur = optSet.chart_column_to_plot[0]
+            list_alpha_neur = optSet.chart_column_to_plot[1]
+            list_gamma_neur = optSet.chart_column_to_plot[2]
+    else:
+        rep = select_chartcol(optSet, optSet.chartColNames)
+        list_sensory_neur, list_alpha_neur, list_gamma_neur = rep
+        if rep is not None:
+            optSet.chart_column_to_plot = list(rep)
+            with open(chart_plot_pickle_name, 'wb') as f1:
+                pickle.dump(list(rep), f1)
+    Randomize_before_cmaes = False
     """
     ATTENTION Potentiel PB car chemin 'autoSeed_number' rentré en dur !!!
     """ 
     autoSeed_number = 0
-    seeds_path = get30bestbhv(model_short_ID, newmodel_root, autoSeed_number)
-    prev_seeds_path = seeds_path
-    rep3 = write_optim_scriptFile(optSet, root_path, modeldirname,
-                                  seeds_path, newbase_path)
-    newmodel_root, newbase_dirname, s8, rep1, completeScriptName = rep3
-    start = len("transfert_from_workDir\tPathDest=")
-    CMAESpath = s8[start:-1]
-    model_short_ID = rep1[1]
-    ang_txt = rep1[5]
-    trial_root = CMAESpath + "/" + ang_txt
-    """
-    GEPdataPath = trial_root + "/trial-0/GEPdata"
-    if os.path.exists(GEPdataPath):
-        trial_root = os.path.split(GEPdataPath)[0]
-        new_trialname = get_newtrial_dir(trial_root)
-        GEPdataPath = trial_root + "/" + new_trialname + "/GEPdata"
-    """
-    
+    while autoSeed_number < CMAesNb:
+        seeds_path = get30bestbhv(model_short_ID, newmodel_root, autoSeed_number)
+        prev_seeds_path = seeds_path
+        rep3 = write_optim_scriptFile(optSet, root_path, modeldirname,
+                                      seeds_path, newbase_path)
+        newmodel_root, newbase_dirname, s8, rep1, completeScriptName = rep3
+        start = len("transfert_from_workDir\tPathDest=")
+        CMAESpath = s8[start:-1]
+        model_short_ID = rep1[1]
+        ang_txt = rep1[5]
+        trial_root = CMAESpath + "/" + ang_txt
+        """
+        GEPdataPath = trial_root + "/trial-0/GEPdata"
+        if os.path.exists(GEPdataPath):
+            trial_root = os.path.split(GEPdataPath)[0]
+            new_trialname = get_newtrial_dir(trial_root)
+            GEPdataPath = trial_root + "/" + new_trialname + "/GEPdata"
+        """
+        autoSeed_number += 1
+
     # =========================================================================
     process = "GEP"
     # =========================================================================
     SeedSearch_dicVal = {}
-    GEPNb = 5
+    GEPNb = 6
     errThr = [10,5,3,2,1,1]
     coactThr = [2,1,0.6,0.3,0.1,0.01]
     for gep in range(GEPNb+1):
@@ -834,9 +921,7 @@ if __name__ == '__main__':
     text = "set settings values"
     SeedSearch_dicVal = set_values_in_list(SeedSearch_dicVal, selected,
                                            typ, text)
-    
-    while autoSeed_number < GEPNb:
-        autoSeed_number += 1
+    while autoSeed_number < GEPNb+CMAesNb:
         seeds_path = get30bestbhv(model_short_ID, newmodel_root,
                                   autoSeed_number)
         rep4 = write_GEP_scriptFile(optSet, root_path, modeldirname, rep1,
@@ -845,13 +930,13 @@ if __name__ == '__main__':
                                     autoSeed_number)
         newmodel_root, s8 = rep4
         prev_seeds_path = seeds_path
-
-    autoSeed_number += 1
+        autoSeed_number += 1
+    """
     rep4 = write_GEP_scriptFile(optSet, root_path, modeldirname, rep1,
                                 completeScriptName, prev_seeds_path,
                                 seeds_path, SeedSearch_dicVal,
                                 autoSeed_number)
-
+    """
     
     sys.exit()
 
