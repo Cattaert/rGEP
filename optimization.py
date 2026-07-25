@@ -210,6 +210,9 @@ Modified July 06, 2026 (D. Cattaert):
     New procedure added: "set_limits_singleparamset()", used to create valid
     random start (i.e. all param in the range (0,1)). This is used to allow
     CMAes start from random in contromScriptGEP.py
+Modified July 24, 2026 (D; Cattaert):
+    Bug fixed in runTrials_saveAll() procedure:
+        preTot = "0" is nessary when there are less that 10 param sets to run.
 """
 
 import class_animatLabModel as AnimatLabModel
@@ -5248,6 +5251,8 @@ def runTrials_saveAll(win, paramserie, paramserieSlices, destdir,
         preTot = "0"
     else:
         preTot = ""
+        
+    preTot = "0"
     deb = 0
     fin = 0
     lst_tab = []

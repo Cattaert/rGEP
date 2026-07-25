@@ -117,6 +117,10 @@ modified June 10, 2026 (D.Cattaert):
     saveGrFromChart=False. This allows to choose to build graphs or not in the
     class "Perturbation_Setting0" in makeGraphs.py in the method used to run
     selected behaviors (run_selected_bhv).
+modified July 24, 2026 (D. Cattaert):
+    run_list_selected_param() method modified. At the end of the method, the
+    messsage now indicates only the number of runs (without the indication
+    "perturbations", because this methd is not exclusively used by pertsetting)
 """
 
 import pyqtgraph as pg
@@ -3261,7 +3265,7 @@ class MaFenetre(class_UiMainWindow.Ui_MainWindow):
         self.newtabBehavElts = self.tabBehavElts   
         self.bestchartList = bestchartList
         print("===================================================")
-        print("    End of", len(self.newtabBehavElts), "perturbation runs")
+        print("    End of", len(self.newtabBehavElts), "runs")
         print("===================================================")
 
         # self.saves_newGEPdata(seedDirCreate=False)
