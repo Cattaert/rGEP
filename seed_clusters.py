@@ -29,6 +29,7 @@ from optimization import copyDirectory
 from optimization import copyFileDir_ext
 from optimization import copyFileWithExt
 from optimization import cleanChartsFromNewResultDir
+from optimization import calculateMvtdurFromMax_Speed
 from optimization import getInfoComputer
 from optimization import readGravityfromAsim
 
@@ -253,7 +254,127 @@ def RunGEPfromSeed(seed_dir):
     win.do_GEP_rand() 
     
     
+def save_df_to_csv(df, pathGEP, file_name, typ=None):
+    completeName = os.path.join(pathGEP, file_name + '.csv')
+    df.to_csv(completeName, sep=",")
 
+    
+def save_newGEP_csv(win):
+    if win.bhv_names[win.behav_col[0]] == 'endangle':
+        nomx = "amp"
+        win.bhv_xmin = min(win.df_bhvremain["endangle"])
+        win.bhv_xmax = max(win.df_bhvremain["endangle"])
+    if win.bhv_names[win.behav_col[1]] == 'dur_mvt2':
+        nomy = "dur"
+        win.bhv_ymin = min(win.df_bhvremain["dur_mvt2"])
+        win.bhv_ymax = max(win.df_bhvremain["dur_mvt2"])
+    if win.bhv_names[win.behav_col[1]] in ('max_speed', 'speed_mvt2'):
+        nomy = "vit"
+        win.bhv_ymin = min(win.df_bhvremain["max_speed"])
+        win.bhv_ymax = max(win.df_bhvremain["max_speed"])
+    str_bhvSet = "{}{:.2f}-{:.2f}_{}{:.2f}-{:.2f}".format(nomx, win.bhv_xmin,
+                                                          win.bhv_xmax,
+                                                          nomy, win.bhv_ymin,
+                                                          win.bhv_ymax)
+    graph_path = win.animatsimdir + "/graphs"
+    if not os.path.exists(graph_path):
+        os.makedirs(graph_path)
+    NbSelectedBhv = len(win.df_parremain)
+    file_name = "{}_bhv{}".format(str_bhvSet, NbSelectedBhv)
+    save_df_to_csv(win.df_bhvremain, graph_path,
+                   file_name, typ='bhv')
+    file_name = "{}_par{}".format(str_bhvSet, NbSelectedBhv)
+    save_df_to_csv(win.df_parremain, graph_path,
+                   file_name, typ='par')
+
+
+def prepareTransfer_GEP(win, seed_dir):
+    seed_name = os.path.split(seed_dir)[-1]
+    seeds = seed_name.split("_", 1)[1]
+    Th = "errT{}coT{}".format(str(win.errThr), str(win.coactThr))
+    destdir = sim_model_dir + "/" + "2_rGEP_" + seeds + "_"
+    destdir += "span" + str(win.glob_span) + Th
+    return destdir
+    
+
+def get_ang_txt(win):
+    optSet = win.optSet
+    angle1 = win.optSet.angle1
+    angle2 = win.optSet.angle2
+    if win.bhv_names[win.behav_col[1]] == "dur_mvt2":
+        mvtdur = win.optSet.endMvt2 -win.optSet.startMvt2
+        ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+    elif win.bhv_names[win.behav_col[1]] == "max_speed":
+        max_speed = 138.
+        amplitude = angle2 - angle1
+        mvtdur = calculateMvtdurFromMax_Speed(optSet, max_speed,
+                                              amplitude)
+        ang_txt = 'ang%d-%d_dur%d' % (angle1, angle2, int(mvtdur*1000))
+        print(ang_txt)
+    return ang_txt
+    
+
+def transfertData(animatsimdir, savedatadir, idx, ang_txt='0', const='0',
+                  iteration=0):
+    """
+    In : animatsimdir : the path to the directory of animatlab
+        savedatadir : the path to the directory in which we'd like to save the
+        results of the algorithms performed with the current script
+        angles : The value of the angle we asked the algorithm to perform
+        const : the value of the weight of the synapses if we specified any
+    This procedure move the file from the animatsimdir to the folder in
+    which we'd like to save the results
+    """
+    sourcedir = animatsimdir
+    if idx != 0:
+        destdir = os.path.join(savedatadir)
+    else:
+        destdir = os.path.join(savedatadir, ang_txt, const)
+        if not os.path.exists(destdir):
+            os.makedirs(destdir)
+        listsubdir = os.listdir(destdir)
+        ix = 0
+        for index, sdir in enumerate(listsubdir):
+            if os.path.isdir(os.path.join(destdir, sdir)):
+                ix += 1
+        print(ix, "sub-directories")
+        print("Existing trial-XX directories")
+        list_trialdir = []
+        for fold in listsubdir:
+            if int(fold.find("_seed")) == -1:
+                print(fold)
+                list_trialdir.append(fold)
+        ix = len(list_trialdir)
+        newname = "trial" + '-{0:d}'.format(ix)
+        print("New directory :", newname)
+        destdir = os.path.join(destdir, newname)
+        # To avoid overwrite a preceeding trial folder
+        while os.path.exists(destdir):
+                ix += 1
+                newname = "trial" + '-{0:d}'.format(ix)
+                destdir = os.path.join(destdir, newname)
+
+        # print(sourcedir, "->", destdir)
+        if not os.path.exists(destdir) and idx == 0:
+            os.makedirs(destdir)
+    for subdir in os.listdir(sourcedir):
+        src = os.path.join(sourcedir, subdir)
+        tgt = os.path.join(destdir, subdir)
+        # print "tgt: ", tgt
+        if len(tgt) > 255:
+            tgt = tgt[:255]
+        if os.path.isdir(src):
+            if not os.path.exists(tgt):
+                os.makedirs(tgt)
+            transfertData(src, tgt, idx+1)
+            shutil.rmtree(src)
+        else:
+            os.rename(src, tgt)
+
+    
+
+    
+    
 # ==========================================================================
 #                                   MAIN
 # ==========================================================================
@@ -273,7 +394,11 @@ if __name__ == '__main__':
     root.destroy()
     
     
-    base_dir = base_dir
+    base_path = base_dir
+    base_name = os.path.split(base_path)[-1]
+    txt1 = base_name[base_name.find("_")+1:]
+    model_short_ID = txt1[:txt1.find("_")]
+    
     sim_model_dir = os.path.split(base_dir)[0]
     
     root_path = sim_model_dir
@@ -349,8 +474,16 @@ if __name__ == '__main__':
         seed_dir = get_first_seed_from_csv(data_csv)
         # =====================================================================
         RunGEPfromSeed(seed_dir)
+        save_newGEP_csv(win)
         
+        pathSrc = win.animatsimdir
+        pathDest = prepareTransfer_GEP(win, seed_dir)
+        ang_txt = get_ang_txt(win)
+        const=""
+        transfertData(pathSrc, pathDest, 0, ang_txt=ang_txt, const=const)
         
+# TODO : continuer le script : data_csv= concatenate(data_csv, data_newGEP_csv) ;
+        # cluster = find_seed_without_family(data_csv) ... etc.
         
         """
         win.closeWindows()
